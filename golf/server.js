@@ -193,8 +193,8 @@ module.exports = function setupGolf(nsp) {
       if (event === 'sunk') {
         m.sunk(playerId);
         room.pos[playerId] = [...m.hole.cup];
-      } else if (event === 'water') {
-        m.water(playerId); // si riparte da dove si era tirato
+      } else if (event === 'water' || event === 'out') {
+        m.water(playerId); // acqua o vuoto: un colpo in più e si riparte da dove si era tirato
       } else if (event === 'rest' && Number.isFinite(x) && Number.isFinite(z)) {
         room.pos[playerId] = [x, z];
         m.rest(playerId);

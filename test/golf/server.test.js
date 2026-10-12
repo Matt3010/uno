@@ -58,3 +58,18 @@ test('golf: stanza, partenza, colpi condivisi, buca dopo', { timeout: 20000 }, a
   c.emit('join', { code, name: 'Carla' });
   assert.match(await once(c, 'error-msg'), /in corso/);
 });
+
+test('golf: cadere nel vuoto costa un colpo come l’acqua', { timeout: 20000 }, async (t) => {
+  const url = await start(t);
+  const a = io(url, { transports: ['websocket'] });
+  t.after(() => a.close());
+  a.emit('create', { name: 'Anna' });
+  await once(a, 'joined');
+  const playing = waitState(a, (s) => s.phase === 'playing');
+  a.emit('start');
+  const s = await playing;
+  a.emit('shot', { angle: 0, power: 1, t0: 1 });
+  a.emit('result', { event: 'out' });
+  const after = await waitState(a, (x) => x.strokes[s.you][0] === 2);
+  assert.deepStrictEqual(after.pos[s.you], s.pos[s.you], 'si riparte da dove si era tirato');
+});
