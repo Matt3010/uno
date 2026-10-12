@@ -3,6 +3,10 @@
   --yellow: #fdd835;
   --green: #43a047;
   --blue: #1e88e5;
+  --pink: #e84393;
+  --teal: #00a8a8;
+  --orange: #f57c00;
+  --purple: #7b3fbf;
   --bg: #0b3d2e;
   --bg2: #145c44;
   --panel: rgba(0, 0, 0, 0.35);
@@ -141,6 +145,7 @@ input:focus { border-color: var(--yellow); }
     "top top"
     "opp side"
     "center side"
+    "pending side"
     "actions side"
     "hand hand";
   gap: 12px;
@@ -231,6 +236,16 @@ input:focus { border-color: var(--yellow); }
 .card.green .val { color: var(--green); }
 .card.blue { background: var(--blue); }
 .card.blue .val { color: var(--blue); }
+.card.pink { background: var(--pink); }
+.card.pink .val { color: var(--pink); }
+.card.teal { background: var(--teal); }
+.card.teal .val { color: var(--teal); }
+.card.orange { background: var(--orange); }
+.card.orange .val { color: var(--orange); }
+.card.purple { background: var(--purple); }
+.card.purple .val { color: var(--purple); }
+.card.long .val { font-size: 20px; }
+.card.long .corner { font-size: 9px; }
 .card.wild { background: #222; }
 .card.wild::before {
   background: conic-gradient(var(--red) 0 25%, var(--blue) 0 50%, var(--green) 0 75%, var(--yellow) 0);
@@ -250,6 +265,71 @@ input:focus { border-color: var(--yellow); }
 .hand.my-turn .card.playable { box-shadow: 0 0 0 3px var(--yellow), 0 3px 8px rgba(0, 0, 0, 0.4); }
 
 #discard .card { transform: rotate(-4deg); }
+
+/* Lato scuro di UNO Flip */
+html.dark-side, html.dark-side body { background: radial-gradient(circle at 50% 40%, #2b1d3d, #120a1c 70%) fixed; background-color: #120a1c; }
+html.dark-side .card:not(.back) { border-color: #111; }
+html.dark-side .card:not(.back)::before { background: #1c1c1c; }
+html.dark-side .card.wild::before {
+  background: conic-gradient(var(--pink) 0 25%, var(--teal) 0 50%, var(--orange) 0 75%, var(--purple) 0);
+}
+.card.deck-face { cursor: pointer; opacity: 0.9; }
+.card.deck-face:disabled { cursor: default; opacity: 0.6; }
+.card.deck-face .val { font-size: 18px; }
+
+/* Retro visibile delle carte avversarie (Flip) */
+.opp .mini.face {
+  font-size: 8px;
+  font-weight: 900;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.5);
+}
+.opp .mini.face.red { background: var(--red); }
+.opp .mini.face.yellow { background: var(--yellow); }
+.opp .mini.face.green { background: var(--green); }
+.opp .mini.face.blue { background: var(--blue); }
+.opp .mini.face.pink { background: var(--pink); }
+.opp .mini.face.teal { background: var(--teal); }
+.opp .mini.face.orange { background: var(--orange); }
+.opp .mini.face.purple { background: var(--purple); }
+.opp .mini.face.wild { background: conic-gradient(var(--red) 0 25%, var(--blue) 0 50%, var(--green) 0 75%, var(--yellow) 0); }
+.opp.out { opacity: 0.45; }
+
+.pending-info {
+  grid-area: pending;
+  text-align: center;
+  background: rgba(229, 57, 53, 0.25);
+  border: 1px solid rgba(229, 57, 53, 0.6);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-weight: 600;
+}
+
+/* Scelta modalità */
+.modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; width: 100%; max-width: 760px; }
+.mode {
+  font: inherit;
+  text-align: left;
+  background: var(--panel);
+  color: var(--text);
+  border: 2px solid transparent;
+  border-radius: 12px;
+  padding: 12px 14px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mode span { font-size: 13px; color: var(--muted); }
+.mode.selected { border-color: var(--yellow); box-shadow: 0 0 12px rgba(253, 216, 53, 0.35); }
+.mode:disabled { cursor: default; }
+.mode:disabled:not(.selected) { opacity: 0.55; }
+
+.swap-list { display: flex; flex-direction: column; gap: 8px; }
 
 /* --- Lato: log & chat --- */
 .side { grid-area: side; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
@@ -303,6 +383,10 @@ input:focus { border-color: var(--yellow); }
 .c.yellow { background: var(--yellow); }
 .c.green { background: var(--green); }
 .c.blue { background: var(--blue); }
+.c.pink { background: var(--pink); }
+.c.teal { background: var(--teal); }
+.c.orange { background: var(--orange); }
+.c.purple { background: var(--purple); }
 .scores { border-collapse: collapse; width: 100%; }
 .scores td { padding: 4px 8px; text-align: left; }
 .scores td:last-child { text-align: right; font-weight: 700; }
@@ -325,10 +409,13 @@ input:focus { border-color: var(--yellow); }
   :root { --card-w: 54px; --card-h: 82px; }
   #table {
     grid-template-columns: 1fr;
-    grid-template-areas: "top" "opp" "center" "actions" "hand" "side";
+    grid-template-areas: "top" "opp" "center" "pending" "actions" "hand" "side";
   }
   .card .val { font-size: 22px; }
   .hand { gap: 4px; }
   .log { height: 110px; }
   .logo { font-size: 56px; }
 }
+
+.opp .mini-cards:has(.face) { flex-wrap: wrap; height: auto; min-height: 28px; max-width: 176px; gap: 2px; margin-left: auto; margin-right: auto; }
+.opp .mini.face { margin-left: 0; }

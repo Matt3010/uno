@@ -5,8 +5,6 @@ const { spawn } = require('node:child_process');
 const path = require('node:path');
 const { io } = require('socket.io-client');
 
-const PORT = 3999;
-
 function once(sock, ev) {
   return new Promise((res) => sock.once(ev, res));
 }
@@ -19,11 +17,13 @@ function waitState(sock, pred) {
 }
 
 test('due giocatori creano, entrano e giocano', async (t) => {
-  const srv = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], { env: { ...process.env, PORT } });
+  // porta 0: il sistema ne sceglie una libera, che il server stampa all'avvio
+  const srv = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], { env: { ...process.env, PORT: 0 } });
   t.after(() => srv.kill());
-  await new Promise((res) => srv.stdout.once('data', res));
+  const line = await new Promise((res) => srv.stdout.once('data', (d) => res(String(d))));
+  const port = line.match(/:(\d+)/)[1];
 
-  const url = `http://localhost:${PORT}`;
+  const url = `http://localhost:${port}`;
   const a = io(url, { transports: ['websocket'] });
   const b = io(url, { transports: ['websocket'] });
   t.after(() => { a.close(); b.close(); });

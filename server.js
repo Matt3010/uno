@@ -5,12 +5,11 @@ const crypto = require('crypto');
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
-const { Game, GameError } = require('./game');
+const { Game, GameError, MODES } = require('./game');
 
 const PORT = process.env.PORT || 3000;
 const MAX_PLAYERS = 10;
 const DISCONNECT_GRACE_MS = 90 * 1000;
-const TARGET_SCORE = 500; // regola ufficiale: vince la partita chi arriva a 500 punti
 
 const app = express();
 const server = http.createServer(app);
@@ -39,6 +38,12 @@ function cleanName(name) {
 function broadcast(room) {
   for (const m of room.members.values()) {
     if (!m.connected || !m.socketId) continue;
+    let game = null;
+    try {
+      game = room.game ? room.game.viewFor(m.id) : null;
+    } catch (e) {
+      console.error(e);
+    }
     io.to(m.socketId).emit('state', {
       code: room.code,
       hostId: room.hostId,
@@ -49,8 +54,10 @@ function broadcast(room) {
         connected: x.connected,
         score: x.score,
       })),
-      game: room.game ? room.game.viewFor(m.id) : null,
-      targetScore: TARGET_SCORE,
+      game,
+      mode: room.mode,
+      modes: Object.fromEntries(Object.entries(MODES).map(([k, v]) => [k, v.name])),
+      targetScore: MODES[room.mode].target,
       matchWinner: room.matchWinner,
     });
   }
@@ -80,7 +87,7 @@ function applyWinner(room) {
     const m = room.members.get(g.winner.id);
     if (m) {
       m.score += g.winner.points;
-      if (m.score >= TARGET_SCORE) room.matchWinner = { id: m.id, name: m.name, score: m.score };
+      if (m.score >= MODES[room.mode].target) room.matchWinner = { id: m.id, name: m.name, score: m.score };
     }
   }
 }
@@ -108,7 +115,7 @@ io.on('connection', (socket) => {
     if (room) return;
     const code = newRoomCode();
     const id = crypto.randomUUID();
-    const r = { code, hostId: id, members: new Map(), game: null, dealer: -1, matchWinner: null };
+    const r = { code, hostId: id, members: new Map(), game: null, dealer: -1, matchWinner: null, mode: 'classic' };
     r.members.set(id, { id, name: cleanName(name), socketId: null, connected: false, score: 0, timer: null });
     rooms.set(code, r);
     attach(r, r.members.get(id));
@@ -142,7 +149,25 @@ io.on('connection', (socket) => {
     }
     // chi distribuisce ruota a ogni mano
     room.dealer = (room.dealer + 1) % players.length;
-    room.game = new Game(players, { dealer: room.dealer });
+    room.game = new Game(players, { dealer: room.dealer, mode: room.mode });
+    broadcast(room);
+  });
+
+  // L'host sceglie la modalità tra una mano e l'altra; cambiarla azzera i punteggi
+  socket.on('mode', (mode) => {
+    if (!room || room.hostId !== playerId || !MODES[mode] || mode === room.mode) return;
+    if (room.game && !room.game.winner) return;
+    room.mode = mode;
+    room.matchWinner = null;
+    room.game = null;
+    for (const m of room.members.values()) m.score = 0;
+    broadcast(room);
+  });
+
+  socket.on('lobby', () => {
+    if (!room || room.hostId !== playerId) return;
+    if (room.game && !room.game.winner) return;
+    room.game = null;
     broadcast(room);
   });
 
@@ -165,8 +190,9 @@ io.on('connection', (socket) => {
   socket.on('draw', gameAction((g) => g.drawCard(playerId)));
   socket.on('pass', gameAction((g) => g.pass(playerId)));
   socket.on('color', gameAction((g, { color }) => g.chooseColor(playerId, color)));
-  socket.on('accept4', gameAction((g) => g.acceptWild4(playerId)));
-  socket.on('challenge4', gameAction((g) => g.challengeWild4(playerId)));
+  socket.on('accept', gameAction((g) => g.accept(playerId)));
+  socket.on('challenge', gameAction((g) => g.challenge(playerId)));
+  socket.on('swap', gameAction((g, { targetId }) => g.swapHands(playerId, targetId)));
   socket.on('uno', gameAction((g) => g.sayUno(playerId)));
   socket.on('catch', gameAction((g, { targetId }) => g.catchUno(playerId, targetId)));
 
@@ -218,5 +244,5 @@ io.on('connection', (socket) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`UNO online su http://localhost:${PORT}`);
+  console.log(`UNO online su http://localhost:${server.address().port}`);
 });

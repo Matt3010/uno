@@ -32,6 +32,21 @@
       <input id="shareLink" readonly />
       <button id="copyBtn" class="btn small">Copia</button>
     </div>
+    <div class="modes" id="modeList">
+      <button class="mode" data-mode="classic">
+        <b>UNO Classico</b>
+        <span>Le regole ufficiali di sempre, con la sfida sul Jolly +4. Si vince a 500 punti.</span>
+      </button>
+      <button class="mode" data-mode="flip">
+        <b>UNO Flip</b>
+        <span>Carte a doppia faccia: la carta Flip gira tutto sul lato scuro, con +5, Salta tutti e Jolly pesca colore. Vedi il retro delle carte degli avversari.</span>
+      </button>
+      <button class="mode" data-mode="nomercy">
+        <b>Show 'Em No Mercy</b>
+        <span>+6, +10 e accumulo delle carte pesca, il 7 scambia e lo 0 passa le mani, si pesca finché non puoi giocare. Con 25 carte sei eliminato!</span>
+      </button>
+    </div>
+    <p id="modeHint" class="muted"></p>
     <ul id="memberList" class="members"></ul>
     <button id="startBtn" class="btn primary">Inizia partita</button>
     <p id="waitHost" class="muted">In attesa che l'host avvii la partita…</p>
@@ -41,7 +56,7 @@
   <!-- Tavolo -->
   <section id="table" class="screen hidden">
     <header class="topbar">
-      <span>Stanza <b id="tableCode"></b></span>
+      <span>Stanza <b id="tableCode"></b> · <span id="modeName" class="muted"></span></span>
       <span id="turnInfo"></span>
       <button id="leaveBtn2" class="btn small ghost">Esci</button>
     </header>
@@ -60,7 +75,10 @@
       <div class="direction" id="direction">⟳</div>
     </div>
 
+    <div id="pendingInfo" class="pending-info hidden"></div>
+
     <div class="actions">
+      <button id="takeBtn" class="btn small hidden"></button>
       <button id="passBtn" class="btn small hidden">Passa</button>
       <button id="unoBtn" class="btn uno">UNO!</button>
     </div>
@@ -79,27 +97,29 @@
   <!-- Scelta colore -->
   <div id="colorPicker" class="modal hidden">
     <div class="modal-box">
-      <h3>Scegli un colore</h3>
-      <div class="colors">
-        <button data-color="red" class="c red"></button>
-        <button data-color="yellow" class="c yellow"></button>
-        <button data-color="green" class="c green"></button>
-        <button data-color="blue" class="c blue"></button>
-      </div>
+      <h3 id="colorTitle">Scegli un colore</h3>
+      <div class="colors" id="colorButtons"></div>
       <button id="cancelColor" class="btn small ghost">Annulla</button>
     </div>
   </div>
 
-  <!-- Sfida al +4 -->
-  <div id="wild4Box" class="modal hidden">
+  <!-- Sfida al Jolly pesca -->
+  <div id="challengeBox" class="modal hidden">
     <div class="modal-box">
-      <h3 id="wild4Text"></h3>
-      <p class="muted">Se sfidi ed era un bluff (aveva una carta del colore precedente), le 4 carte le pesca chi l'ha giocato.<br />
-        Se invece il +4 era regolare, peschi tu 6 carte.</p>
+      <h3 id="challengeText"></h3>
+      <p id="challengeHelp" class="muted"></p>
       <div class="row">
-        <button id="acceptBtn" class="btn">Accetta (+4)</button>
+        <button id="acceptBtn" class="btn">Accetta</button>
         <button id="challengeBtn" class="btn primary">Sfida!</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Scambio mani (7 nel No Mercy) -->
+  <div id="swapBox" class="modal hidden">
+    <div class="modal-box">
+      <h3>Con chi vuoi scambiare la mano?</h3>
+      <div id="swapList" class="swap-list"></div>
     </div>
   </div>
 
@@ -110,6 +130,7 @@
       <p id="targetText" class="muted"></p>
       <table id="scoreTable" class="scores"></table>
       <button id="nextRoundBtn" class="btn primary">Nuova mano</button>
+      <button id="changeModeBtn" class="btn small ghost">Cambia modalità</button>
       <p id="waitNext" class="muted">In attesa dell'host…</p>
     </div>
   </div>

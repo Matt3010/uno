@@ -4,7 +4,7 @@ Una copia di UNO giocabile online con gli amici, direttamente dal browser (anche
 
 - Stanze private con codice di 4 lettere e link da condividere
 - Da 2 a 10 giocatori, tutto in tempo reale (Socket.IO)
-- Regole classiche: Salta, Inverti, +2, Jolly, Jolly +4
+- Tre modalità: **UNO Classico**, **UNO Flip** e **UNO Show 'Em No Mercy**
 - Pulsante **UNO!** e possibilità di "beccare" chi se lo dimentica (+2 carte)
 - Punteggio cumulativo tra le mani, chat, riconnessione automatica se cade la linea
 
@@ -43,27 +43,53 @@ Con il server avviato in locale: `npx localtunnel --port 3000` oppure
 
 ## Come si gioca
 
-Le regole sono quelle **ufficiali** di UNO.
-
 1. Uno crea la stanza e condivide il link (o il codice).
-2. Gli altri entrano con il proprio nome; l'host preme **Inizia partita**.
+2. L'host sceglie la modalità; gli altri entrano con il proprio nome e l'host preme **Inizia partita**.
    Chi distribuisce ruota a ogni mano e inizia il giocatore alla sua sinistra.
-3. Al tuo turno clicca una carta evidenziata, oppure pesca una carta dal mazzo.
-   Se la carta pescata è giocabile puoi giocarla subito o premere **Passa**.
-4. **Jolly +4**: si può giocare sempre, ma è regolare solo se non hai carte del colore in tavola.
-   Chi lo riceve può **accettare** (pesca 4 e salta il turno) o **sfidare**:
-   - se era un bluff, le 4 carte le pesca chi l'ha giocato e chi ha sfidato gioca normalmente;
-   - se era regolare, chi ha sfidato pesca 6 carte e salta il turno.
-5. **Prima carta scoperta**: si applica il suo effetto (Salta, Inverti, +2; con il Jolly il primo
-   giocatore sceglie il colore). Un Jolly +4 viene rimesso nel mazzo.
-6. In 2 giocatori **Inverti** vale come **Salta**.
-7. Quando stai per rimanere con una carta premi **UNO!** (prima o subito dopo aver giocato).
+3. Al tuo turno clicca una carta evidenziata, oppure pesca dal mazzo.
+4. Quando stai per rimanere con una carta premi **UNO!** (prima o subito dopo aver giocato).
    Se te lo dimentichi, gli altri possono premere *"Non ha detto UNO!"* finché il giocatore
    successivo non agisce: peschi 2 carte.
-8. Chi finisce le carte vince la mano e prende i punti delle carte rimaste agli altri
-   (numeri = valore, azioni = 20, jolly = 50). Se l'ultima carta è un +2/+4, il giocatore
-   successivo pesca comunque e quelle carte contano nei punti.
-9. Vince la **partita** chi arriva per primo a **500 punti**.
+5. Chi finisce le carte vince la mano e prende i punti delle carte rimaste agli altri.
+   A fine mano l'host può passare a un'altra modalità (i punteggi si azzerano).
+
+### UNO Classico (108 carte, si vince a 500 punti)
+
+- Carte: numeri 0-9, Salta, Inverti, +2, Jolly, Jolly +4. In 2 giocatori **Inverti** vale come **Salta**.
+- Se la carta pescata è giocabile puoi giocarla subito o premere **Passa**.
+- **Jolly +4**: si può giocare sempre, ma è regolare solo se non hai carte del colore in tavola.
+  Chi lo riceve può **accettare** (pesca 4 e salta il turno) o **sfidare**: se era un bluff le 4 carte
+  le pesca chi l'ha giocato, se era regolare chi sfida pesca 6 carte e salta il turno.
+- **Prima carta scoperta**: si applica il suo effetto (con il Jolly il primo giocatore sceglie il colore);
+  un Jolly +4 torna nel mazzo.
+- Se l'ultima carta è un +2/+4, il giocatore successivo pesca comunque e quelle carte contano nei punti.
+- Punti: numeri = valore, azioni = 20, jolly = 50.
+
+### UNO Flip (112 carte a doppia faccia, si vince a 500 punti)
+
+- **Lato chiaro** (rosso, giallo, verde, blu): numeri 1-9, **+1**, Salta, Inverti, **Flip**, Jolly, **Jolly +2**.
+- **Lato scuro** (rosa, azzurro, arancione, viola): numeri 1-9, **+5**, Inverti, **Salta tutti**
+  (giochi di nuovo), **Flip**, Jolly, **Jolly pesca colore** (il successivo pesca finché non esce il colore scelto).
+- **Flip**: si girano mazzo, pila degli scarti e tutte le mani; si gioca sulla nuova carta in cima.
+  Se è un Jolly, il colore lo sceglie chi ha giocato il Flip.
+- Vedi il **retro** delle carte degli avversari e della prima carta del mazzo (cioè la loro altra faccia).
+- Jolly +2 e Jolly pesca colore si possono **sfidare** come il +4 classico
+  (se la sfida fallisce chi sfida pesca la penalità più 2 carte).
+- Punti contati sul lato in gioco: +1 = 10; +5, Salta, Inverti, Flip = 20; Salta tutti = 30;
+  Jolly = 40; Jolly +2 = 50; Jolly pesca colore = 60.
+
+### UNO Show 'Em No Mercy (168 carte, si vince a 1000 punti)
+
+- Carte colorate: numeri 0-9, Salta, Inverti, +2, **+4**, **Salta tutti**, **Scarta tutto**
+  (scarti con lei tutte le carte di quel colore). Jolly: **Jolly inverti +4**, **+6**, **+10**, **Roulette dei colori**.
+- **Accumulo**: a un +2/+4/+6/+10 puoi rispondere con una carta pesca di valore **uguale o superiore**
+  (il colore non conta). Chi non può o non vuole rilanciare pesca il totale e salta il turno.
+- **Roulette dei colori**: il giocatore successivo sceglie un colore e pesca finché non esce.
+- **7**: scambi la mano con un giocatore a scelta. **0**: tutti passano la mano nella direzione di gioco.
+- **Si pesca finché non si trova una carta giocabile**, che poi va giocata.
+- **Regola della pietà**: con **25 carte** o più sei eliminato. Vince chi finisce le carte o resta l'ultimo.
+- Niente sfide sui Jolly: si possono giocare sempre.
+- Punti: numeri = valore, azioni colorate = 20, jolly = 50, ogni giocatore eliminato = 250.
 
 ## Sviluppo
 
