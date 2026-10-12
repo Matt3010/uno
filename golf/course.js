@@ -244,13 +244,15 @@
   }
 
   // Ostacolo su una piastrella dritta o in curva; restituisce un'etichetta per il par
-  function decorate(rng, hole, t, straight, index, force) {
+  // tall = false: nella cella c'è anche un altro piano, quindi niente pezzi alti (mulini, gallerie)
+  function decorate(rng, hole, t, straight, index, force, tall = true) {
     const S = TILE;
     const h = t.h0;
     const across = 1 - travelAxis(t);
     const choicesStraight = ['bridge', 'bridge', 'tunnel', 'windmill', 'windmill', 'slider', 'slider', 'spinner', 'spinner', 'boost', 'water', 'water', 'stub', 'bumper', 'sand'];
     const choicesTurn = ['bumper', 'bumper', 'sand', 'spinner'];
-    const kind = force || pick(rng, straight ? choicesStraight : choicesTurn);
+    const allowed = tall ? choicesStraight : choicesStraight.filter((k) => k !== 'windmill' && k !== 'tunnel');
+    const kind = force || pick(rng, straight ? allowed : choicesTurn);
     switch (kind) {
       case 'bumper': {
         const n = rng() < 0.5 ? 1 : 2;
@@ -336,7 +338,8 @@
         plain.push(i);
         continue;
       }
-      const what = decorate(rng, hole, t, straight(i), index, wantMill && straight(i) ? 'windmill' : null);
+      const tall = T.filter((o) => o.gx === t.gx && o.gz === t.gz).length === 1;
+      const what = decorate(rng, hole, t, straight(i), index, wantMill && straight(i) && tall ? 'windmill' : null, tall);
       if (what === 'windmill') wantMill = false;
       // spesso un secondo ostacolo sulla stessa piastrella
       if (['sand', 'boost', 'water', 'stub'].includes(what) && rng() < 0.6) {

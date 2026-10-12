@@ -711,6 +711,24 @@ export function createWorld(canvas) {
         group.add(shadows(r));
       }
     }
+    // tutto quello che sta su un piano di sopra (sponde, funghi, pale...) sfuma insieme al pavimento
+    const box = new THREE.Box3();
+    const c = new THREE.Vector3();
+    for (const up of moving.upper) {
+      const t = up.tile;
+      const [x0, z0, x1, z1] = tileRect(t);
+      const floor = Math.min(t.h0, t.h1);
+      for (const child of group.children) {
+        box.setFromObject(child).getCenter(c);
+        if (c.x < x0 - 0.2 || c.x > x1 + 0.2 || c.z < z0 - 0.2 || c.z > z1 + 0.2 || c.y < floor - 0.3) continue;
+        child.traverse((o) => {
+          if (!o.isMesh || up.mats.includes(o.material)) return;
+          o.material = o.material.clone();
+          o.material.transparent = true;
+          up.mats.push(o.material);
+        });
+      }
+    }
     scene.add(group);
 
     const mx = (minX + maxX) / 2;

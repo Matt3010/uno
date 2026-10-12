@@ -177,3 +177,15 @@ test('partenza e buca hanno la loro altezza', () => {
     }
   }
 });
+
+test('niente mulini né gallerie dove due piani stanno nella stessa cella', () => {
+  for (let seed = 1; seed <= 60; seed++) {
+    for (const hole of generateCourse(seed)) {
+      const count = new Map();
+      for (const t of hole.tiles) count.set(`${t.gx},${t.gz}`, (count.get(`${t.gx},${t.gz}`) || 0) + 1);
+      const shared = (x, z) => count.get(`${Math.floor(x / 5)},${Math.floor(z / 5)}`) > 1;
+      for (const m of hole.windmills) assert.ok(!shared(m.x, m.z), `seme ${seed}: mulino tra due piani`);
+      for (const t of hole.tiles) if (t.roof) assert.ok(count.get(`${t.gx},${t.gz}`) === 1, `seme ${seed}: galleria tra due piani`);
+    }
+  }
+});
