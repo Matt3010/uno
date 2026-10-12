@@ -146,12 +146,6 @@ function closeColorPicker() {
 }
 $('cancelColor').onclick = closeColorPicker;
 
-$('chatForm').onsubmit = (e) => {
-  e.preventDefault();
-  const text = $('chatInput').value.trim();
-  if (text) socket.emit('chat', text);
-  $('chatInput').value = '';
-};
 
 function playCard(card) {
   if (!card.playable) return toast(cannotPlayReason(card));
@@ -335,15 +329,6 @@ socket.on('kicked', () => {
   state = null;
   show('home');
   toast('Sei stato rimosso dalla stanza');
-});
-
-socket.on('chat', ({ name, text }) => {
-  const li = document.createElement('li');
-  const b = document.createElement('b');
-  b.textContent = name + ': ';
-  li.append(b, document.createTextNode(text));
-  $('chatLog').append(li);
-  $('chatLog').scrollTop = $('chatLog').scrollHeight;
 });
 
 socket.on('state', (s) => {
@@ -660,16 +645,6 @@ function render() {
   if (!me && !g.winner) {
     $('turnInfo').textContent = g.eliminated.length ? 'Sei fuori: guardi la partita' : $('turnInfo').textContent;
   }
-
-  // Log
-  const log = $('log');
-  log.innerHTML = '';
-  for (const line of g.log) {
-    const li = document.createElement('li');
-    li.textContent = line;
-    log.append(li);
-  }
-  log.scrollTop = log.scrollHeight;
 
   renderRoundEnd(s, g, isHost);
   if (prevG) animateChanges(prevG, g, s, before);

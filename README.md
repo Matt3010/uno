@@ -6,9 +6,9 @@ Una copia di UNO giocabile online con gli amici, direttamente dal browser (anche
 - Da 2 a 10 giocatori, tutto in tempo reale (Socket.IO)
 - Quattro modalità: **UNO Classico**, **UNO Flip**, **UNO Show 'Em No Mercy** e **UNO Casinò**
 - Pulsante **UNO!** e possibilità di "beccare" chi se lo dimentica (+2 carte)
-- Punteggio cumulativo tra le mani, chat, riconnessione automatica se cade la linea
+- Punteggio cumulativo tra le mani, riconnessione automatica se cade la linea
 - **Giocatori computer** da aggiungere insieme agli amici (Facile, Normale, Difficile): pensano qualche
-  secondo, dicono UNO (a volte se lo dimenticano) e beccano chi non lo dice; non scrivono in chat
+  secondo, dicono UNO (a volte se lo dimenticano) e beccano chi non lo dice
 - **Timer per turno** (Off / 15 / 30 / 60 secondi, scelto dall'host): allo scadere il gioco muove da solo
   (pesca e passa; nelle scelte accetta, sceglie il colore più presente in mano o scambia con chi ha meno carte)
 - Aiuto nel gioco: pulsante **❓ Regole** con le carte spiegate, suggerimenti su cosa fare a ogni turno

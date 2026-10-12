@@ -13,7 +13,7 @@ const BOT_NAMES = [
 const LEVELS = {
   easy: {
     name: 'Facile',
-    think: [1500, 3500], // ms di "riflessione" prima di muovere
+    think: [3000, 5000], // ms di "riflessione" prima di muovere
     forgetUno: 0.4, // probabilità di dimenticarsi di dire UNO
     lateUno: 0.5, // se se ne dimentica, probabilità di accorgersene in ritardo
     catchChance: 0.15, // probabilità di beccare chi non dice UNO
@@ -21,7 +21,7 @@ const LEVELS = {
   },
   normal: {
     name: 'Normale',
-    think: [1200, 2800],
+    think: [2600, 4400],
     forgetUno: 0.12,
     lateUno: 0.6,
     catchChance: 0.45,
@@ -29,13 +29,16 @@ const LEVELS = {
   },
   hard: {
     name: 'Difficile',
-    think: [900, 2200],
+    think: [2500, 4000],
     forgetUno: 0,
     lateUno: 1,
     catchChance: 0.85,
     challenge: 0.35,
   },
 };
+
+// ms di attesa prima di giocare (o passare) la carta appena pescata
+const AFTER_DRAW = [1500, 2500];
 
 const ATTACK = ['skip', 'reverse', 'draw1', 'draw2', 'draw4', 'draw5', 'skipall'];
 
@@ -160,4 +163,4 @@ function applyAction(game, botId, action, level = 'normal') {
   }
 }
 
-module.exports = { LEVELS, BOT_NAMES, pickName, between, chooseAction, applyAction };
+module.exports = { LEVELS, AFTER_DRAW, BOT_NAMES, pickName, between, chooseAction, applyAction };

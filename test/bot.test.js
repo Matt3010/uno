@@ -46,3 +46,9 @@ test('il computer difficile attacca chi sta per vincere e tiene i Jolly', () => 
   assert.strictEqual(chooseAction(g, 'a', 'hard').cardId, skip.id);
   assert.notStrictEqual(chooseAction(g, 'a', 'normal').cardId, wild.id);
 });
+
+test('i computer non vanno troppo veloci: si vede cosa fanno', () => {
+  const bots = require('../bot');
+  for (const L of Object.values(bots.LEVELS)) assert.ok(L.think[0] >= 2500, `${L.name} pensa almeno 2,5 s`);
+  assert.ok(bots.AFTER_DRAW[0] >= 1500, 'dopo aver pescato aspetta almeno 1,5 s');
+});

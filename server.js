@@ -97,7 +97,7 @@ function scheduleBots(room) {
       room.botKey = key;
       clearTimeout(room.botHandle);
       const L = bots.LEVELS[cur.level];
-      const delay = (g.hasDrawn ? bots.between([600, 1200]) : bots.between(L.think)) * BOT_DELAY_SCALE;
+      const delay = (g.hasDrawn ? bots.between(bots.AFTER_DRAW) : bots.between(L.think)) * BOT_DELAY_SCALE;
       room.botHandle = setTimeout(() => {
         if (room.game !== g || g.winner || turnKey(g) !== key) return;
         try {
@@ -377,14 +377,6 @@ io.on('connection', (socket) => {
     if (rooms.has(r.code)) broadcast(r);
     room = null;
     playerId = null;
-  });
-
-  socket.on('chat', (text) => {
-    if (!room) return;
-    const msg = String(text || '').trim().slice(0, 200);
-    if (!msg) return;
-    const m = room.members.get(playerId);
-    io.to(room.code).emit('chat', { name: m ? m.name : '?', text: msg });
   });
 
   socket.on('disconnect', () => {

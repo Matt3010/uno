@@ -282,15 +282,8 @@ input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(249, 200, 
 /* --- Tavolo --- */
 #table {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 270px;
-  grid-template-areas:
-    "top top"
-    "opp side"
-    "center side"
-    "pending side"
-    "hint side"
-    "actions side"
-    "hand hand";
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "top" "opp" "center" "pending" "hint" "actions" "hand";
   gap: 12px;
 }
 .topbar { grid-area: top; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
@@ -541,28 +534,6 @@ html.dark-side .card:not(.wild):not(.back) .val { -webkit-text-stroke-color: #00
 
 .swap-list { display: flex; flex-direction: column; gap: 8px; }
 
-/* --- Lato: log & chat --- */
-.side { grid-area: side; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
-.log {
-  list-style: none;
-  margin: 0;
-  padding: 10px 12px;
-  background: var(--panel);
-  border: 1px solid var(--panel-border);
-  border-radius: 14px;
-  font-size: 13px;
-  height: 180px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.log li { color: var(--muted); }
-.log li:last-child { color: var(--text); }
-.chat li { color: var(--text); }
-.chat b { color: var(--yellow); }
-.chat-form input { width: 100%; }
-
 /* --- Modali --- */
 .modal {
   position: fixed;
@@ -686,7 +657,7 @@ html.dark-side .modal-box { background: linear-gradient(160deg, #3d2659, #1c1029
   :root { --card-w: 58px; --card-h: 87px; }
   #table {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: "top" "opp" "center" "pending" "hint" "actions" "hand" "side";
+    grid-template-areas: "top" "opp" "center" "pending" "hint" "actions" "hand";
     gap: 10px;
   }
   #turnInfo { font-size: 15px; padding: 3px 10px; white-space: nowrap; }
@@ -695,7 +666,6 @@ html.dark-side .modal-box { background: linear-gradient(160deg, #3d2659, #1c1029
   .opp { min-width: 96px; padding: 6px 8px 8px; }
   .center { gap: 22px; padding: 8px 0; }
   .hand { padding: 20px 4px 22px; }
-  .log { height: 110px; }
   .logo { width: 190px; height: 108px; }
   .logo span { font-size: 60px; }
 }

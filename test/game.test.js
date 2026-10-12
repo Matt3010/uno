@@ -14,6 +14,7 @@ function setup(players, hands, top, turn = 0) {
   g.currentColor = top.color;
   g.direction = 1;
   g.pending = null;
+  g.skip = null;
   g.log = [];
   return g;
 }
@@ -488,6 +489,7 @@ function casinoSetup(players, hands, top, rolls = [], turn = 0) {
   g.players.forEach((p, i) => { p.hand = hands[i]; });
   g.discard = [top];
   g.currentColor = top.color;
+  g.skip = null;
   g.log = [];
   const seq = [...rolls];
   g.rng = () => seq.shift();
