@@ -76,15 +76,23 @@ $('copyBtn').onclick = async () => {
 };
 $('startBtn').onclick = () => socket.emit('start');
 $('againBtn').onclick = () => socket.emit('start');
-$('leaveBtn').onclick = () => {
+// uscire davvero: il server toglie subito dalla stanza e non si rientra in automatico
+function leave() {
+  socket.emit('leave');
   store('golf-session', null);
-  location.href = '/golf/';
-};
+  if (document.pointerLockElement) document.exitPointerLock();
+  // un attimo perché il messaggio parta prima di cambiare pagina
+  setTimeout(() => { location.href = '/golf/'; }, 200);
+}
+$('leaveBtn').onclick = leave;
+$('exitBtn').onclick = leave;
+$('homeLink').onclick = leave;
 
 socket.on('connect', () => {
   // rientro automatico nella stanza dopo un ricaricamento o un calo di linea
   const saved = JSON.parse(load('golf-session') || 'null');
-  if (saved && (!urlRoom || urlRoom.toUpperCase() === saved.code)) {
+  // si rientra da soli solo aprendo il link della stessa stanza
+  if (saved && urlRoom && urlRoom.toUpperCase() === saved.code) {
     socket.emit('join', { code: saved.code, playerId: saved.playerId, name: load('golf-name') });
   }
 });
@@ -585,5 +593,4 @@ function renderScores(s) {
     ? (host ? 'Vuoi rigiocare? Le buche saranno tutte nuove.' : 'Aspetta che chi ha creato la stanza inizi una nuova partita')
     : 'La prossima buca parte tra pochi secondi…';
   $('againBtn').classList.toggle('hidden', !(over && host));
-  $('homeLink').classList.toggle('hidden', !over);
 }

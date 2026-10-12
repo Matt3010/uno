@@ -101,6 +101,7 @@ input {
   white-space: nowrap;
 }
 #clock.low { color: var(--red); }
+.exit { position: absolute; top: 14px; left: 14px; pointer-events: auto; background: var(--panel); padding: 8px 14px; }
 .players {
   position: absolute;
   top: 14px;

@@ -224,6 +224,16 @@ module.exports = function setupGolf(nsp) {
       checkHoleOver(room);
     }));
 
+    // uscita volontaria: si lascia subito la stanza (anche a partita iniziata)
+    socket.on('leave', () => {
+      if (!room) return;
+      const r = room;
+      socket.leave(r.code);
+      room = null;
+      removeMember(r, playerId);
+      playerId = null;
+    });
+
     socket.on('disconnect', () => {
       if (!room) return;
       const r = room;

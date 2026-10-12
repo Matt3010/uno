@@ -130,3 +130,25 @@ test('golf: una spinta di un ostacolo non conta come colpo ma la vedono tutti', 
   assert.strictEqual(after.strokes[s.you][0], 0);
   assert.deepStrictEqual(after.pos[s.you], [2.2, 2.6, 0.12], 'si ricorda anche il piano');
 });
+
+test('golf: si esce dalla stanza anche a partita iniziata', { timeout: 20000 }, async (t) => {
+  const url = await start(t);
+  const a = io(url, { transports: ['websocket'] });
+  const b = io(url, { transports: ['websocket'] });
+  t.after(() => { a.close(); b.close(); });
+  a.emit('create', { name: 'Anna' });
+  const { code } = await once(a, 'joined');
+  b.emit('join', { code, name: 'Bruno' });
+  await once(b, 'joined');
+  await waitState(a, (s) => s.members.length === 2);
+  const playing = waitState(a, (s) => s.phase === 'playing');
+  a.emit('start');
+  await playing;
+  const alone = waitState(a, (s) => s.members.length === 1);
+  b.emit('leave');
+  await alone;
+  // chi è uscito può creare un'altra stanza
+  b.emit('create', { name: 'Bruno' });
+  const again = await once(b, 'joined');
+  assert.notStrictEqual(again.code, code);
+});

@@ -189,3 +189,37 @@ test('niente mulini né gallerie dove due piani stanno nella stessa cella', () =
     }
   }
 });
+
+test('prima e dopo rampe e salti niente ponti né ostacoli che bloccano la rincorsa', () => {
+  const blocking = (hole, t) => t.kind === 'bridge' || t.roof
+    || [...hole.windmills, ...hole.sliders, ...hole.spinners].some((o) => Math.floor(o.x / 5) === t.gx && Math.floor(o.z / 5) === t.gz && Math.abs((o.y ?? 0) - t.h0) < 0.5)
+    || hole.zones.some((zn) => zn.type === 'water' && Math.abs(zn.y - t.h0) < 0.5 && zn.poly.every(([x, z]) => Math.floor((x - 1e-6) / 5) === t.gx || Math.floor((x + 1e-6) / 5) === t.gx) && zn.poly.every(([x, z]) => Math.floor((z - 1e-6) / 5) === t.gz || Math.floor((z + 1e-6) / 5) === t.gz));
+  for (let seed = 1; seed <= 60; seed++) {
+    for (const hole of generateCourse(seed)) {
+      const T = hole.tiles;
+      T.forEach((t, i) => {
+        if (t.kind !== 'ramp' && t.kind !== 'gap') return;
+        for (const n of [T[i - 1], T[i + 1]]) {
+          if (n && n.kind !== 'ramp' && n.kind !== 'gap') assert.ok(!blocking(hole, n), `seme ${seed}, buca ${hole.index + 1}: ostacolo accanto a ${t.kind} (piastrella ${T.indexOf(n)})`);
+        }
+      });
+    }
+  }
+});
+
+test('spesso si sale oltre il primo piano, a volte tre piani uno sopra l’altro', () => {
+  let high = 0;
+  let triple = 0;
+  let total = 0;
+  for (let seed = 1; seed <= 30; seed++) {
+    for (const hole of generateCourse(seed)) {
+      total++;
+      if (Math.max(...hole.tiles.map((t) => Math.max(t.h0, t.h1))) >= 5.2 - 1e-9) high++;
+      const count = new Map();
+      for (const t of hole.tiles) count.set(`${t.gx},${t.gz}`, (count.get(`${t.gx},${t.gz}`) || 0) + 1);
+      if ([...count.values()].some((n) => n >= 3)) triple++;
+    }
+  }
+  assert.ok(high / total >= 0.35, `buche fino al secondo piano o più: ${high}/${total}`);
+  assert.ok(triple >= 5, `celle con tre piani: ${triple}`);
+});

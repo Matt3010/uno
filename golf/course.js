@@ -64,27 +64,8 @@
         const r = route.length || straightNext || !calm ? 2 : rng();
         const [a1x, a1z] = ahead(1);
         const [a2x, a2z] = ahead(2);
-        // salita di un piano: due rampe ripide di fila
-        const climbChance = climbs === 0 && tiles.length >= 3 ? 0.75 : 0.3;
-        if (room >= 3 && climbs < 3 && h < LEVEL * 2 && r < climbChance + 0.01 * index
-          && fits(a1x, a1z, h, h + LEVEL / 2) && fits(a2x, a2z, h + LEVEL / 2, h + LEVEL)) {
-          put(a1x, a1z, h, h + LEVEL / 2, 'ramp');
-          put(a2x, a2z, h + LEVEL / 2, h + LEVEL, 'ramp');
-          h += LEVEL;
-          climbs++;
-          lastTurn = 0;
-          // cavalcavia: dritto, tornante, indietro nella riga accanto, poi sopra la piastrella da cui si è saliti
-          if (rng() < 0.85) {
-            const side = (dir + (rng() < 0.5 ? 1 : 3)) % 4;
-            const back = (dir + 2) % 4;
-            route = [dir, side, back, back, back, (side + 2) % 4];
-          } else {
-            straightNext = true;
-          }
-          continue;
-        }
         // discesa di un piano: a rampe, oppure saltando giù dal bordo (dopo un po' di strada lassù)
-        if (h >= LEVEL && highSteps >= 3 && r < 0.14) {
+        if (h >= LEVEL && highSteps >= 3 && r <= 1 && rng() < 0.12) {
           if (rng() < 0.5 && room >= 3 && fits(a1x, a1z, h - LEVEL / 2, h) && fits(a2x, a2z, h - LEVEL, h - LEVEL / 2)) {
             put(a1x, a1z, h, h - LEVEL / 2, 'ramp');
             put(a2x, a2z, h - LEVEL / 2, h - LEVEL, 'ramp');
@@ -100,6 +81,25 @@
             straightNext = true;
             continue;
           }
+        }
+        // salita di un piano: due rampe ripide di fila
+        const climbChance = climbs === 0 && tiles.length >= 3 ? 0.75 : 0.65;
+        if (room >= 3 && climbs < 4 && h < LEVEL * 3 && r < climbChance + 0.01 * index
+          && fits(a1x, a1z, h, h + LEVEL / 2) && fits(a2x, a2z, h + LEVEL / 2, h + LEVEL)) {
+          put(a1x, a1z, h, h + LEVEL / 2, 'ramp');
+          put(a2x, a2z, h + LEVEL / 2, h + LEVEL, 'ramp');
+          h += LEVEL;
+          climbs++;
+          lastTurn = 0;
+          // cavalcavia: dritto, tornante, indietro nella riga accanto, poi sopra la piastrella da cui si è saliti
+          if (rng() < 0.85) {
+            const side = (dir + (rng() < 0.5 ? 1 : 3)) % 4;
+            const back = (dir + 2) % 4;
+            route = [dir, side, back, back, back, (side + 2) % 4];
+          } else {
+            straightNext = true;
+          }
+          continue;
         }
         // salto sul burrone: rampa e atterraggio più avanti
         if (room >= 3 && r > 0.82 - 0.01 * index && r <= 1 && fits(a1x, a1z, h, h + 0.8) && fits(a2x, a2z, h + 0.3, h + 0.3)) {
@@ -339,6 +339,15 @@
         continue;
       }
       const tall = T.filter((o) => o.gx === t.gx && o.gz === t.gz).length === 1;
+      // accanto a rampe e salti serve la rincorsa: niente ponti né ostacoli che sbarrano, al massimo un aiuto
+      const nearSpecial = [T[i - 1], T[i + 1]].some((o) => o && (o.kind === 'ramp' || o.kind === 'gap'));
+      if (nearSpecial) {
+        // (in curva niente acceleratore: spingerebbe contro la sponda)
+        const easy = pick(rng, straight(i) ? ['boost', 'boost', 'bumper', 'sand', 'plain'] : ['bumper', 'sand', 'plain']);
+        if (easy === 'plain') plain.push(i);
+        else decorate(rng, hole, t, straight(i), index, easy);
+        continue;
+      }
       const what = decorate(rng, hole, t, straight(i), index, wantMill && straight(i) && tall ? 'windmill' : null, tall);
       if (what === 'windmill') wantMill = false;
       // spesso un secondo ostacolo sulla stessa piastrella
