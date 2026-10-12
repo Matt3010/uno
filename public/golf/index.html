@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#1d6b3a" />
+  <title>Golf con gli amici</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="golf.css" />
+  <script type="importmap">{ "imports": { "three": "/vendor/three/three.module.min.js" } }</script>
+</head>
+<body>
+  <canvas id="view"></canvas>
+
+  <!-- Ingresso -->
+  <section id="home" class="panel screen">
+    <a class="back" href="/">← Giochi</a>
+    <h1>⛳ Golf</h1>
+    <p class="muted">Minigolf 3D con gli amici: buche nuove a ogni partita.</p>
+    <p id="mobileNote" class="note hidden">💻 Il golf si gioca da computer, con mouse e tastiera.</p>
+    <label>Il tuo nome <input id="nameInput" maxlength="16" placeholder="Come ti chiami?" /></label>
+    <button id="createBtn" class="btn primary">Crea una stanza</button>
+    <div class="join-row">
+      <input id="codeInput" maxlength="4" placeholder="CODICE" />
+      <button id="joinBtn" class="btn">Entra</button>
+    </div>
+  </section>
+
+  <!-- Attesa nella stanza -->
+  <section id="lobby" class="panel screen hidden">
+    <h2>Stanza <b id="lobbyCode"></b></h2>
+    <p class="muted">Manda questo link agli amici:</p>
+    <div class="join-row">
+      <input id="shareLink" readonly />
+      <button id="copyBtn" class="btn">Copia</button>
+    </div>
+    <ul id="lobbyMembers" class="members"></ul>
+    <button id="startBtn" class="btn primary hidden">Inizia la partita</button>
+    <p id="waitHost" class="muted hidden">Aspetta che chi ha creato la stanza inizi la partita…</p>
+    <button id="leaveBtn" class="btn ghost">Esci</button>
+  </section>
+
+  <!-- In partita -->
+  <div id="hud" class="hidden">
+    <div class="hud-top">
+      <span id="holeInfo"></span>
+      <span id="clock"></span>
+    </div>
+    <ul id="players" class="players"></ul>
+    <div id="labels"></div>
+    <div class="hud-bottom">
+      <div id="powerBox" class="power hidden"><div id="powerFill"></div></div>
+      <div id="hint" class="hint"></div>
+    </div>
+  </div>
+
+  <!-- Tra una buca e l'altra, e alla fine -->
+  <section id="scores" class="panel overlay hidden">
+    <h2 id="scoresTitle"></h2>
+    <div class="table-wrap"><table id="scoreTable"></table></div>
+    <p id="scoresNote" class="muted"></p>
+    <button id="againBtn" class="btn primary hidden">Nuova partita</button>
+    <a id="homeLink" class="btn ghost hidden" href="/">Torna ai giochi</a>
+  </section>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/golf/lib/physics.js"></script>
+  <script src="/golf/lib/course.js"></script>
+  <script type="module" src="golf.js"></script>
+</body>
+</html>

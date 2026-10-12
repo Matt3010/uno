@@ -18,7 +18,8 @@
   "homepage": "https://github.com/Matt3010/uno#readme",
   "dependencies": {
     "express": "^4.22.3",
-    "socket.io": "^4.8.4"
+    "socket.io": "^4.8.4",
+    "three": "^0.169.0"
   },
   "devDependencies": {
     "socket.io-client": "^4.8.4"
