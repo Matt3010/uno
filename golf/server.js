@@ -6,9 +6,9 @@ const { GolfMatch, GolfError, MAX_STROKES } = require('./match');
 
 const MAX_PLAYERS = 8;
 const DISCONNECT_GRACE_MS = 60 * 1000;
-const HOLE_SECONDS = Number(process.env.GOLF_HOLE_SECONDS) || 150;
+const HOLE_SECONDS = Number(process.env.GOLF_HOLE_SECONDS) || 240;
 const BETWEEN_MS = Number(process.env.GOLF_BETWEEN_MS) || 6000;
-const HOLE_CHOICES = [9, 18];
+const HOLE_CHOICES = [9, 18, 'prova'];
 const COLORS = ['#ffffff', '#ff5a4e', '#4ea3ff', '#ffd23f', '#5ee07a', '#c77dff', '#ff9f43', '#3ee6d6'];
 
 module.exports = function setupGolf(nsp) {
@@ -69,7 +69,8 @@ module.exports = function setupGolf(nsp) {
     const m = room.match;
     room.phase = 'playing';
     room.pos = {};
-    for (const p of m.players) room.pos[p.id] = [...m.hole.start];
+    // posizioni [x, z, y]: con più piani serve anche l'altezza del prato
+    for (const p of m.players) room.pos[p.id] = [...m.hole.start, m.hole.startY];
     room.holeStartedAt = Date.now();
     room.holeEndsAt = room.holeStartedAt + HOLE_SECONDS * 1000;
     clearTimers(room);
@@ -199,15 +200,22 @@ module.exports = function setupGolf(nsp) {
       broadcast(room);
     }));
 
-    socket.on('result', act(({ event, x, z }) => {
+    // un ostacolo mobile ha toccato la pallina ferma: si muove senza contare un colpo
+    socket.on('push', act(({ t0 }) => {
+      if (!Number.isFinite(t0)) return;
+      room.match.check(playerId);
+      socket.to(room.code).emit('shot', { id: playerId, angle: 0, power: 0, t0, from: room.pos[playerId] });
+    }));
+
+    socket.on('result', act(({ event, x, z, y }) => {
       const m = room.match;
       if (event === 'sunk') {
         m.sunk(playerId);
-        room.pos[playerId] = [...m.hole.cup];
+        room.pos[playerId] = [...m.hole.cup, m.hole.cupY];
       } else if (event === 'water' || event === 'out') {
         m.water(playerId); // acqua o vuoto: un colpo in più e si riparte da dove si era tirato
       } else if (event === 'rest' && Number.isFinite(x) && Number.isFinite(z)) {
-        room.pos[playerId] = [x, z];
+        room.pos[playerId] = [x, z, Number.isFinite(y) ? y : room.pos[playerId][2]];
         m.rest(playerId);
       } else {
         return;

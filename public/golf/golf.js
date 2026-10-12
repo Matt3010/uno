@@ -139,7 +139,7 @@ function holeClock() {
 
 // Avvia una pallina (mia o di un altro) e la fa correre fotogramma per fotogramma
 function launch(b, from, angle, power, t0, mine) {
-  const sim = P.createBall(course[state.holeIndex], from[0], from[1]);
+  const sim = P.createBall(course[state.holeIndex], from[0], from[1], from[2]);
   P.shoot(sim, angle, power);
   b.sim = { ball: sim, t: t0, t0, start: from, mine, acc: 0 };
   b.x = from[0];
@@ -157,7 +157,7 @@ function advanceBall(id, b, dt) {
     const ev = P.step(s.ball, hole, P.DT, s.t);
     s.t += P.DT;
     let end = ev;
-    if (!end && P.atRest(s.ball, hole)) end = 'rest';
+    if (!end && P.atRest(s.ball, hole) && !P.touchingMoving(s.ball, hole, s.t)) end = 'rest';
     if (!end && s.t - s.t0 > 30) end = 'rest'; // non dovrebbe mai servire: si ferma comunque
     if (end) {
       finishBall(id, b, end);
@@ -176,7 +176,7 @@ function finishBall(id, b, event) {
     // un colpo in più e si riparte da dove si era tirato
     b.x = s.start[0];
     b.z = s.start[1];
-    b.y = restY(b.x, b.z);
+    b.y = s.start[2] + P.BALL_R;
     if (s.mine) toast(event === 'water' ? '💦 In acqua! +1 colpo' : '🕳 Caduta nel vuoto! +1 colpo');
   } else {
     b.x = s.ball.x;
@@ -190,12 +190,13 @@ function finishBall(id, b, event) {
       toast(scoreWord(strokes, course[state.holeIndex].par), true);
     }
   }
-  if (s.mine) socket.emit('result', { event, x: b.x, z: b.z });
+  if (s.mine) socket.emit('result', { event, x: b.x, z: b.z, y: b.y - P.BALL_R });
 }
 
-function restY(x, z) {
-  const g = world.groundY(x, z);
-  return (g ?? 0) + P.BALL_R;
+// centro della pallina appoggiata in (x, z) sul prato a quota "floor" (o sul più alto, se non si sa)
+function restY(x, z, floor) {
+  const g = world.groundY(x, z, floor == null ? Infinity : floor + 0.5);
+  return (g ?? floor ?? 0) + P.BALL_R;
 }
 
 function scoreWord(strokes, par) {
@@ -247,7 +248,7 @@ function shoot() {
   const b = myBall();
   const t0 = holeClock();
   socket.emit('shot', { angle: yaw, power: p, t0 });
-  launch(b, [b.x, b.z], yaw, p, t0, true);
+  launch(b, [b.x, b.z, b.y - P.BALL_R], yaw, p, t0, true);
 }
 
 // Il mouse gira la visuale (catturato dalla pagina); tenendo premuto il sinistro e tirando indietro si carica
@@ -317,6 +318,14 @@ function frame(now) {
     const t = holeClock();
     world.animate(t, myBall());
 
+    // la mia pallina ferma toccata da una pala, un muro che scorre o la porta del mulino: viene spinta
+    const mine = myBall();
+    if (mine && !mine.sim && !mine.sunk && state.phase === 'playing' && !state.done[state.you]
+      && P.touchingMoving(mine, course[state.holeIndex], t)) {
+      socket.emit('push', { t0: t });
+      launch(mine, [mine.x, mine.z, mine.y - P.BALL_R], 0, 0, t, true);
+    }
+
     for (const [id, b] of balls) {
       advanceBall(id, b, dt);
       b.mesh.visible = !(b.sunk && !b.sim);
@@ -332,7 +341,8 @@ function frame(now) {
 
     const me = myBall();
     const start = course[state.holeIndex].start;
-    const focus = me ? me.mesh.position : tmp.set(start[0], restY(start[0], start[1]), start[1]);
+    const hole = course[state.holeIndex];
+    const focus = me ? me.mesh.position : tmp.set(start[0], restY(start[0], start[1], hole.startY), start[1]);
     const dist = zoom;
     camLook.lerp(focus, Math.min(1, dt * 6));
     camPos.set(
@@ -353,9 +363,12 @@ function frame(now) {
       const dotAt = (d, k, lift) => {
         const x = me.x + cx * k;
         const z = me.z + cz * k;
-        const g = world.groundY(x, z);
-        d.visible = g != null;
-        d.position.set(x, (g ?? 0) + lift, z);
+        // sul prato della pallina i puntini seguono rampe e conche; sopra il vuoto o un piano più basso
+        // restano alla sua quota, così la mira non "cade" di sotto
+        const floor = me.y - P.BALL_R;
+        const g = world.groundY(x, z, me.y + 0.3);
+        const y = g != null && g > floor - 0.6 ? g : floor;
+        d.position.set(x, y + lift, z);
       };
       aimDots.forEach((d, i) => dotAt(d, 0.25 + ((i + 1) / AIM_DOTS) * (len - 0.25), 0.03));
       dotAt(aimTip, len + 0.15, 0.035);
@@ -385,7 +398,7 @@ socket.on('state', (s) => {
   if (s.phase === 'lobby') return renderLobby(s);
 
   if (s.seed !== builtSeed) {
-    course = C.generateCourse(s.seed, s.holeCount);
+    course = s.holes === 'prova' ? C.showcaseCourse() : C.generateCourse(s.seed, s.holeCount);
     builtSeed = s.seed;
     builtHole = -1;
   }
@@ -400,7 +413,7 @@ socket.on('state', (s) => {
     // la telecamera parte guardando verso la seconda piastrella
     const t1 = h.tiles[1];
     yaw = Math.atan2((t1.gz + 0.5) * C.TILE - h.start[1], (t1.gx + 0.5) * C.TILE - h.start[0]);
-    camLook.set(h.start[0], restY(h.start[0], h.start[1]), h.start[1]);
+    camLook.set(h.start[0], restY(h.start[0], h.start[1], h.startY), h.start[1]);
   }
   if (s.phase === 'playing' && (!prev || prev.phase !== 'playing' || prev.holeIndex !== s.holeIndex || Math.abs(holeClock() - s.holeElapsed) > 0.5)) {
     clockBase = performance.now() / 1000 - s.holeElapsed;
@@ -412,8 +425,10 @@ socket.on('state', (s) => {
     if (!s.strokes[m.id]) continue; // entrato dopo: guarda soltanto
     const b = ballFor(m);
     if (!b.sim && s.pos[m.id]) {
-      [b.x, b.z] = s.pos[m.id];
-      b.y = restY(b.x, b.z);
+      const [x, z, floor] = s.pos[m.id];
+      b.x = x;
+      b.z = z;
+      b.y = restY(x, z, floor);
       b.sunk = !!s.done[m.id] && s.pos[m.id][0] === course[s.holeIndex].cup[0] && s.pos[m.id][1] === course[s.holeIndex].cup[1];
     }
   }
@@ -455,7 +470,7 @@ function renderLobby(s) {
   for (const n of s.holeChoices) {
     const b = document.createElement('button');
     b.className = 'btn' + (n === s.holes ? ' on' : '');
-    b.textContent = n;
+    b.textContent = n === 'prova' ? 'Prova tutto' : n;
     b.disabled = !host; // sceglie chi ha creato la stanza
     b.onclick = () => socket.emit('holes', n);
     choices.append(b);

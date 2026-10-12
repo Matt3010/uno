@@ -82,7 +82,7 @@ test('golf: chi crea la stanza sceglie 9 o 18 buche', { timeout: 20000 }, async 
   await once(a, 'joined');
   const lobby = await waitState(a, (s) => s.phase === 'lobby');
   assert.strictEqual(lobby.holes, 9);
-  assert.deepStrictEqual(lobby.holeChoices, [9, 18]);
+  assert.deepStrictEqual(lobby.holeChoices, [9, 18, 'prova']);
   const chosen = waitState(a, (s) => s.holes === 18);
   a.emit('holes', 18);
   await chosen;
@@ -90,4 +90,43 @@ test('golf: chi crea la stanza sceglie 9 o 18 buche', { timeout: 20000 }, async 
   const playing = waitState(a, (s) => s.phase === 'playing');
   a.emit('start');
   assert.strictEqual((await playing).holeCount, 18);
+});
+
+test('golf: si può scegliere la mappa di prova', { timeout: 20000 }, async (t) => {
+  const url = await start(t);
+  const a = io(url, { transports: ['websocket'] });
+  t.after(() => a.close());
+  a.emit('create', { name: 'Anna' });
+  await once(a, 'joined');
+  const lobby = await waitState(a, (s) => s.phase === 'lobby');
+  assert.ok(lobby.holeChoices.includes('prova'));
+  const chosen = waitState(a, (s) => s.holes === 'prova');
+  a.emit('holes', 'prova');
+  await chosen;
+  const playing = waitState(a, (s) => s.phase === 'playing');
+  a.emit('start');
+  assert.strictEqual((await playing).holeCount, 3);
+});
+
+test('golf: una spinta di un ostacolo non conta come colpo ma la vedono tutti', { timeout: 20000 }, async (t) => {
+  const url = await start(t);
+  const a = io(url, { transports: ['websocket'] });
+  const b = io(url, { transports: ['websocket'] });
+  t.after(() => { a.close(); b.close(); });
+  a.emit('create', { name: 'Anna' });
+  const { code } = await once(a, 'joined');
+  b.emit('join', { code, name: 'Bruno' });
+  await once(b, 'joined');
+  await waitState(a, (s) => s.members.length === 2);
+  const playing = waitState(a, (s) => s.phase === 'playing');
+  a.emit('start');
+  const s = await playing;
+  const seen = once(b, 'shot');
+  a.emit('push', { t0: 4 });
+  const shot = await seen;
+  assert.deepStrictEqual({ id: shot.id, power: shot.power, t0: shot.t0 }, { id: s.you, power: 0, t0: 4 });
+  a.emit('result', { event: 'rest', x: 2.2, z: 2.6, y: 0.12 });
+  const after = await waitState(a, (x) => x.pos[s.you][0] === 2.2);
+  assert.strictEqual(after.strokes[s.you][0], 0);
+  assert.deepStrictEqual(after.pos[s.you], [2.2, 2.6, 0.12], 'si ricorda anche il piano');
 });

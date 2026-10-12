@@ -28,7 +28,10 @@
     for (const t of hole.tiles) {
       t.x0 = t.gx * S;
       t.z0 = t.gz * S;
-      map.set(`${t.gx},${t.gz}`, t);
+      // più piastrelle nella stessa cella: piani diversi uno sopra l'altro
+      const k = `${t.gx},${t.gz}`;
+      if (!map.has(k)) map.set(k, []);
+      map.get(k).push(t);
       minY = Math.min(minY, t.h0, t.h1 ?? t.h0);
     }
     Object.defineProperty(hole, '_map', { value: map, enumerable: false, configurable: true });
@@ -37,11 +40,24 @@
     return hole;
   }
 
-  // Altezza del prato in (x, z) con la pendenza (dh/dx, dh/dz); null se lì c'è il vuoto
-  function groundAt(hole, x, z) {
+  const STEP_UP = 0.35; // quanto può stare sopra la pallina un prato per essere "il suo" (rampe, conche)
+
+  // Prato sotto la pallina in (x, z) all'altezza y: il più alto che non le sta sopra la testa.
+  // Restituisce { h, gx, gz } (altezza e pendenza) oppure null se sotto c'è il vuoto.
+  function groundAt(hole, x, z, y = Infinity) {
     const S = hole.tile;
-    const t = hole._map.get(`${Math.floor(x / S)},${Math.floor(z / S)}`);
-    if (!t) return null;
+    const list = hole._map.get(`${Math.floor(x / S)},${Math.floor(z / S)}`);
+    if (!list) return null;
+    let best = null;
+    for (const t of list) {
+      const g = tileGround(hole, t, x, z);
+      if (g && g.h <= y - BALL_R + STEP_UP && (!best || g.h > best.h)) best = g;
+    }
+    return best;
+  }
+
+  function tileGround(hole, t, x, z) {
+    const S = hole.tile;
     const [dx, dz] = DIRS[t.dir || 0];
     // u: quanto si è avanzati nella piastrella lungo la sua direzione; v: di traverso
     const lx = x - t.x0;
@@ -75,11 +91,12 @@
         }
       }
     }
-    return { h, gx, gz };
+    return { h, gx, gz, tile: t };
   }
 
-  function createBall(hole, x, z) {
-    const g = groundAt(hole, x, z);
+  function createBall(hole, x, z, y) {
+    // y: altezza del prato da cui si parte (serve quando ci sono più piani)
+    const g = groundAt(hole, x, z, y == null ? Infinity : y + BALL_R + 0.01);
     return { x, y: (g ? g.h : 0) + BALL_R, z, vx: 0, vy: 0, vz: 0, grounded: true };
   }
 
@@ -101,8 +118,9 @@
     return inside;
   }
 
-  function zonesAt(hole, x, z) {
-    return hole.zones.filter((zn) => inPoly(x, z, zn.poly));
+  // zone (sabbia, acqua, acceleratori) del piano su cui sta la pallina
+  function zonesAt(hole, x, z, floorH) {
+    return hole.zones.filter((zn) => (zn.y == null || Math.abs(zn.y - floorH) < 0.6) && inPoly(x, z, zn.poly));
   }
 
   function spinnerSegment(s, t) {
@@ -211,11 +229,11 @@
   function step(b, hole, dt, t) {
     const prevY = b.y;
     if (b.grounded) {
-      const g = groundAt(hole, b.x, b.z);
+      const g = groundAt(hole, b.x, b.z, b.y);
       if (!g) {
         b.grounded = false;
       } else {
-        const zones = zonesAt(hole, b.x, b.z);
+        const zones = zonesAt(hole, b.x, b.z, g.h);
         const [ax, az] = slopeAccel(hole, g, zones);
         const [k, c] = zones.some((zn) => zn.type === 'sand') ? FRICTION.sand : FRICTION.grass;
         b.vx += ax * dt;
@@ -236,7 +254,7 @@
     b.z += b.vz * dt;
     b.y += b.vy * dt;
 
-    const g = groundAt(hole, b.x, b.z);
+    const g = groundAt(hole, b.x, b.z, Math.max(b.y, prevY));
     if (b.grounded) {
       if (!g || g.h + BALL_R < b.y - 0.04) {
         b.grounded = false; // fine del prato o gradino in giù: si vola
@@ -283,12 +301,12 @@
           const s = hspeed(b) || 1;
           b.x = p.b[0] + (b.vx / s) * (p.r + BALL_R + 0.05);
           b.z = p.b[1] + (b.vz / s) * (p.r + BALL_R + 0.05);
-          const ng = groundAt(hole, b.x, b.z);
+          const ng = groundAt(hole, b.x, b.z, (p.by ?? b.y) + BALL_R + 0.05);
           if (ng) b.y = ng.h + BALL_R;
           break;
         }
       }
-      const zones = zonesAt(hole, b.x, b.z);
+      const zones = zonesAt(hole, b.x, b.z, b.y - BALL_R);
       if (zones.some((zn) => zn.type === 'water')) return 'water';
       const [cx, cz] = hole.cup;
       if (Math.hypot(b.x - cx, b.z - cz) < CUP_R && hspeed(b) < CAPTURE_SPEED) {
@@ -305,12 +323,29 @@
     return null;
   }
 
+  function segDist(b, [x1, z1, x2, z2]) {
+    const dx = x2 - x1;
+    const dz = z2 - z1;
+    const u = Math.max(0, Math.min(1, ((b.x - x1) * dx + (b.z - z1) * dz) / (dx * dx + dz * dz || 1e-9)));
+    return Math.hypot(b.x - (x1 + u * dx), b.z - (z1 + u * dz));
+  }
+
+  // Un ostacolo che si muove (pala, muro che scorre, porta del mulino) sta toccando la pallina al tempo t?
+  function touchingMoving(b, hole, t) {
+    const g = groundAt(hole, b.x, b.z, b.y);
+    const floorY = g ? g.h : b.y - BALL_R;
+    const near = (o, seg) => nearFloor(b, o.y ?? floorY) && segDist(b, seg) < BALL_R + 0.005;
+    return hole.spinners.some((o) => near(o, spinnerSegment(o, t)))
+      || hole.sliders.some((o) => near(o, sliderSegment(o, t)))
+      || hole.windmills.some((o) => !gateOpen(o, t) && near(o, gateSegment(o)));
+  }
+
   // Ferma davvero: a terra, lenta e non su un pendio più forte dell'attrito
   function atRest(b, hole) {
     if (!b.grounded || hspeed(b) > REST_SPEED) return false;
-    const g = groundAt(hole, b.x, b.z);
+    const g = groundAt(hole, b.x, b.z, b.y);
     if (!g) return false;
-    const zones = zonesAt(hole, b.x, b.z);
+    const zones = zonesAt(hole, b.x, b.z, g.h);
     const [ax, az] = slopeAccel(hole, g, zones);
     const [, c] = zones.some((zn) => zn.type === 'sand') ? FRICTION.sand : FRICTION.grass;
     return Math.hypot(ax, az) <= c;
@@ -325,7 +360,7 @@
       t += DT;
       if (onStep) onStep(b, t);
       if (ev) return { event: ev, t };
-      if (atRest(b, hole)) {
+      if (atRest(b, hole) && !touchingMoving(b, hole, t)) {
         b.vx = 0;
         b.vz = 0;
         b.vy = 0;
@@ -337,7 +372,7 @@
 
   const api = {
     BALL_R, CUP_R, MAX_SPEED, CAPTURE_SPEED, DT, BOWL_R, BOWL_DEPTH,
-    prepare, groundAt, createBall, shoot, step, atRest, simulate, inPoly,
+    prepare, groundAt, createBall, shoot, step, atRest, touchingMoving, simulate, inPoly,
     spinnerSegment, sliderSegment, gateOpen, gateSegment,
   };
   if (typeof module === 'object' && module.exports) module.exports = api;

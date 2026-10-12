@@ -1,15 +1,16 @@
 'use strict';
 // Golf: una partita. Tutti giocano insieme la stessa buca; vince chi in totale fa meno colpi.
-const { generateCourse, HOLES } = require('./course');
+const { generateCourse, showcaseCourse, HOLES } = require('./course');
 
-const MAX_STROKES = 10;
+const MAX_STROKES = 15; // buche lunghe e cattive: 15 colpi prima di arrendersi
 
 class GolfError extends Error {}
 
 class GolfMatch {
   constructor(players, { seed, holes = HOLES } = {}) {
     this.seed = seed;
-    this.course = generateCourse(seed, holes);
+    // 'prova': la mappa fissa con tutti gli ostacoli
+    this.course = holes === 'prova' ? showcaseCourse() : generateCourse(seed, holes);
     this.players = players.map((p) => ({ id: p.id, name: p.name }));
     this.holeIndex = 0;
     this.over = false;

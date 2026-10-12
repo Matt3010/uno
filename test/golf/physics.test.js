@@ -180,3 +180,74 @@ test('la conca intorno alla buca accompagna la pallina dentro', () => {
   const b = ball(hole, 11.8, 2.5);
   assert.strictEqual(run(b, hole, 10).event, 'sunk');
 });
+
+test('una pala che arriva su una pallina ferma la spinge via', () => {
+  const spin = { x: 8, z: 2.5, len: 4, speed: 1.5 };
+  const hole = strip(['flat', 'flat', 'flat'], { cup: [1, 0.5], spinners: [spin] });
+  // a t=0 la pala è lungo x: la pallina sta di fianco, sulla traiettoria della punta
+  const b = ball(hole, 8, 4);
+  let t = 0;
+  while (!P.touchingMoving(b, hole, t) && t < 5) t += 0.01;
+  assert.ok(t < 5, 'prima o poi la pala la tocca');
+  const r = P.simulate(b, hole, { maxT: 10, t0: t });
+  assert.strictEqual(r.event, 'rest');
+  assert.ok(Math.hypot(b.x - 8, b.z - 4) > 0.05, 'si è spostata');
+  assert.ok(!P.touchingMoving(b, hole, r.t), 'non è più dentro la pala');
+});
+
+test('lontano dagli ostacoli mobili una pallina ferma resta ferma', () => {
+  const hole = strip(['flat', 'flat', 'flat'], { cup: [1, 0.5], spinners: [{ x: 8, z: 2.5, len: 2, speed: 1 }] });
+  const b = ball(hole, 2, 2.5);
+  for (let t = 0; t < 5; t += 0.05) assert.ok(!P.touchingMoving(b, hole, t));
+});
+
+// Due piani: sotto una fila di 3 piastrelle a quota 0, sopra una piastrella a quota 2,6 sulla cella di mezzo
+function twoFloors(upperWalls = true) {
+  const tiles = [
+    { gx: 0, gz: 0, kind: 'flat', h0: 0, h1: 0, dir: 0 },
+    { gx: 1, gz: 0, kind: 'flat', h0: 0, h1: 0, dir: 0 },
+    { gx: 2, gz: 0, kind: 'flat', h0: 0, h1: 0, dir: 0 },
+    { gx: 1, gz: 0, kind: 'flat', h0: 2.6, h1: 2.6, dir: 1 },
+  ];
+  const walls = [
+    { seg: [0, 0, 15, 0], y0: -0.4, y1: 0.3 },
+    { seg: [0, 5, 15, 5], y0: -0.4, y1: 0.3 },
+    { seg: [0, 0, 0, 5], y0: -0.4, y1: 0.3 },
+    { seg: [15, 0, 15, 5], y0: -0.4, y1: 0.3 },
+  ];
+  if (upperWalls) {
+    for (const seg of [[5, 0, 5, 5], [10, 0, 10, 5], [5, 0, 10, 0], [5, 5, 10, 5]]) walls.push({ seg, y0: 2.2, y1: 2.9 });
+  }
+  return P.prepare({ tile: S, tiles, walls, start: [1, 2.5], cup: [14, 0.5] });
+}
+
+test('due piani: sopra si resta sopra, sotto si passa sotto', () => {
+  const hole = twoFloors();
+  const up = P.createBall(hole, 7.5, 2.5, 2.6);
+  assert.ok(Math.abs(up.y - 2.6 - P.BALL_R) < 1e-6, 'parte al piano di sopra');
+  P.shoot(up, Math.PI / 2, 0.2);
+  P.simulate(up, hole, { maxT: 10 });
+  assert.ok(up.y > 2, 'è rimasta sopra');
+
+  const down = P.createBall(hole, 1, 2.5, 0);
+  P.shoot(down, 0, 0.6);
+  P.simulate(down, hole, { maxT: 10 });
+  assert.ok(down.y < 1 && down.x > 10, `è passata sotto: x=${down.x} y=${down.y}`);
+});
+
+test('dal piano di sopra senza sponda si cade su quello di sotto', () => {
+  const hole = twoFloors(false);
+  const b = P.createBall(hole, 7.5, 2.5, 2.6);
+  P.shoot(b, 0, 0.5);
+  const r = P.simulate(b, hole, { maxT: 15 });
+  assert.notStrictEqual(r.event, 'out');
+  assert.ok(b.y < 1, `atterrata sotto: y=${b.y}`);
+});
+
+test('l’acqua del piano di sopra non bagna chi passa sotto', () => {
+  const hole = twoFloors();
+  hole.zones.push({ type: 'water', poly: [[5, 0], [10, 0], [10, 5], [5, 5]], y: 2.6 });
+  const b = P.createBall(hole, 1, 2.5, 0);
+  P.shoot(b, 0, 0.6);
+  assert.notStrictEqual(P.simulate(b, hole, { maxT: 10 }).event, 'water');
+});
