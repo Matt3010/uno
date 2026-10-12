@@ -23,6 +23,9 @@ let state = null;
 let pendingWildCard = null; // carta Jolly selezionata in attesa del colore
 let colorPickerMode = null; // 'play' | 'pending'
 let lastGame = null; // stato precedente, per animare i cambiamenti
+let timerDeadline = null; // fine del turno corrente (orologio locale)
+let timerTotal = 0;
+let timerBuzzed = false;
 let playFlight = null; // carta giocata ancora in volo
 
 // --- Persistenza locale (nome e riconnessione) ---
@@ -235,6 +238,7 @@ const BASIC_RULES = [
   'Se non hai carte giocabili (o non vuoi giocarle) <b>tocca il mazzo</b> per pescare.',
   'Quando stai per restare con una carta premi <b>UNO!</b>. Se te ne dimentichi, gli altri possono beccarti e peschi 2 carte.',
   'Se un altro dimentica di dire UNO compare il pulsante <b>"Non ha detto UNO!"</b>: premilo prima che giochi il successivo.',
+  'Se è attivo il <b>timer</b> e il tempo scade, il gioco muove per te: peschi una carta e passi (e nelle scelte accetta o sceglie il colore di cui hai più carte).',
 ];
 
 function showRules(mode) {
@@ -342,8 +346,41 @@ socket.on('chat', ({ name, text }) => {
 
 socket.on('state', (s) => {
   state = s;
+  const prevDeadline = timerDeadline;
+  timerDeadline = s.turnRemaining != null ? Date.now() + s.turnRemaining : null;
+  timerTotal = (s.turnTime || 0) * 1000;
+  if (!prevDeadline || !timerDeadline || Math.abs(prevDeadline - timerDeadline) > 1000) timerBuzzed = false;
   render();
+  updateTimers();
 });
+
+// --- Timer del turno ---
+function timerRingEl() {
+  const r = document.createElement('div');
+  r.className = 'timer-ring';
+  r.innerHTML = '<span></span>';
+  return r;
+}
+
+function updateTimers() {
+  const rings = document.querySelectorAll('.timer-ring:not(.hidden)');
+  if (!timerDeadline || !timerTotal) return;
+  const left = Math.max(0, timerDeadline - Date.now());
+  const secs = Math.ceil(left / 1000);
+  for (const r of rings) {
+    r.style.setProperty('--p', Math.min(1, left / timerTotal));
+    r.querySelector('span').textContent = secs;
+    r.classList.toggle('urgent', secs <= 5);
+  }
+  // ultimi 5 secondi del mio turno: avviso
+  const g = state && state.game;
+  if (g && g.turnId === state.you && !g.winner && secs <= 5 && secs > 0 && !timerBuzzed) {
+    timerBuzzed = true;
+    if (navigator.vibrate) navigator.vibrate([60, 60, 60]);
+    toast('⏱ Sbrigati! Restano 5 secondi');
+  }
+}
+setInterval(updateTimers, 200);
 
 // --- Rendering ---
 function cardEl(card, tag = 'div') {
@@ -418,6 +455,16 @@ function renderLobby(s, isHost) {
     b.disabled = !isHost;
   }
   $('modeHint').textContent = isHost ? 'Scegli la modalità di gioco' : "La modalità la sceglie l'host";
+  const tc = $('timerChoice');
+  tc.innerHTML = '';
+  for (const t of s.turnTimes) {
+    const b = document.createElement('button');
+    b.textContent = t ? `${t}s` : 'Off';
+    b.className = t === s.turnTime ? 'selected' : '';
+    b.disabled = !isHost;
+    b.onclick = () => socket.emit('timer', t);
+    tc.append(b);
+  }
   const list = $('memberList');
   list.innerHTML = '';
   for (const m of s.members) {
@@ -520,6 +567,7 @@ function render() {
   info.classList.toggle('hidden', !pend || !!g.winner);
   if (pend) info.textContent = pendingText(g, pend, myTurn, turnName);
 
+  $('myTimer').classList.toggle('hidden', !(myTurn && s.turnRemaining != null));
   const hint = hintText(g, s, myTurn);
   $('hint').classList.toggle('hidden', !hint);
   $('hint').textContent = hint;
@@ -946,6 +994,7 @@ function renderOpponents(s, g) {
     const d = document.createElement('div');
     d.className = 'opp' + (p.id === g.turnId && !g.winner ? ' turn' : '') + (member && !member.connected ? ' offline' : '');
     d.dataset.pid = p.id;
+    if (p.id === g.turnId && !g.winner && s.turnRemaining != null) d.append(timerRingEl());
     const name = document.createElement('div');
     name.className = 'head';
     const nameText = document.createElement('span');

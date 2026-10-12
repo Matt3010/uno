@@ -79,3 +79,34 @@ test('Casinò: scegliendo la modalità tutti partono con 100 fiches', async (t) 
   assert.strictEqual(g.pot, 20);
   assert.deepStrictEqual(g.players.map((p) => p.chips), [90, 90]);
 });
+
+test('Timer: allo scadere il gioco fa la mossa al posto del giocatore', async (t) => {
+  // 1 "secondo" = 20 ms: un turno da 15 s dura 300 ms
+  const srv = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], {
+    env: { ...process.env, PORT: 0, TURN_MS_PER_SECOND: 20 },
+  });
+  t.after(() => srv.kill());
+  const line = await new Promise((res) => srv.stdout.once('data', (d) => res(String(d))));
+  const url = `http://localhost:${line.match(/:(\d+)/)[1]}`;
+  const a = io(url, { transports: ['websocket'] });
+  const b = io(url, { transports: ['websocket'] });
+  t.after(() => { a.close(); b.close(); });
+
+  a.emit('create', { name: 'Anna' });
+  const { code } = await once(a, 'joined');
+  const joined = waitState(a, (s) => s.members.length === 2);
+  b.emit('join', { code, name: 'Bruno' });
+  await joined;
+  assert.strictEqual((await joined).turnTime, 30, 'timer di 30 s di partenza');
+  const set = waitState(a, (s) => s.turnTime === 15);
+  a.emit('timer', 15);
+  await set;
+  const started = waitState(a, (s) => s.game);
+  a.emit('start');
+  const first = (await started).game;
+  assert.ok((await started).turnRemaining > 0);
+  // nessuno gioca: dopo poco il turno passa da solo con "Tempo scaduto"
+  const after = await waitState(a, (s) => s.game && s.game.log.some((l) => l.startsWith('⏱')));
+  const who = first.players.find((p) => p.id === first.turnId).name;
+  assert.ok(after.game.log.includes(`⏱ Tempo scaduto per ${who}`));
+});

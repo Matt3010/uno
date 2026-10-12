@@ -738,6 +738,46 @@ class Game {
     this.advance(1);
   }
 
+  // Colore di cui il giocatore ha più carte (per le scelte automatiche)
+  bestColor(player) {
+    const colors = this.colors();
+    const count = Object.fromEntries(colors.map((c) => [c, 0]));
+    for (const c of player.hand) {
+      const col = this.face(c).color;
+      if (col in count) count[col]++;
+    }
+    return colors.reduce((a, b) => (count[b] > count[a] ? b : a));
+  }
+
+  // Tempo scaduto: il gioco fa una mossa al posto del giocatore di turno
+  autoPlay() {
+    if (this.winner) return;
+    const player = this.current();
+    const p = this.pending;
+    this.addLog(`⏱ Tempo scaduto per ${player.name}`);
+    if (p) {
+      if (p.type === 'color' || p.type === 'roulette') this.chooseColor(player.id, this.bestColor(player));
+      else if (p.type === 'challenge' || p.type === 'stack') this.accept(player.id);
+      else if (p.type === 'swap') {
+        // scambia con chi ha meno carte
+        const others = this.players.filter((pl) => pl.id !== player.id);
+        const target = others.reduce((a, b) => (b.hand.length < a.hand.length ? b : a));
+        this.swapHands(player.id, target.id);
+      }
+      return;
+    }
+    if (!this.hasDrawn) {
+      this.drawCard(player.id);
+      if (this.winner || this.current() !== player || !this.hasDrawn) return;
+    }
+    if (this.noMercy) {
+      // nel No Mercy la carta pescata va giocata
+      this.play(player.id, this.drawnCardId, this.bestColor(player));
+    } else {
+      this.pass(player.id);
+    }
+  }
+
   sayUno(playerId) {
     if (this.winner) return;
     const player = this.getPlayer(playerId);

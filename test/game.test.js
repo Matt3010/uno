@@ -586,3 +586,56 @@ test('Casinò: chi è senza fiches non paga', () => {
   assert.strictEqual(g.pot, 5);
   assert.deepStrictEqual(g.chips, { a: 0, b: 0 });
 });
+
+// ---------------- Timer: mossa automatica ----------------
+test('Tempo scaduto: pesca e passa', () => {
+  const g = setup(three(), [[c('blue', '1')], [c('red', '1')], [c('red', '2')]], c('red', '3'));
+  g.deck.push(c('red', '9')); // giocabile, ma il tempo è scaduto: passa
+  g.autoPlay();
+  assert.strictEqual(g.players[0].hand.length, 2);
+  assert.strictEqual(g.current().id, 'b');
+  // se aveva già pescato, passa e basta
+  g.deck.push(c('red', '8'));
+  g.drawCard('b');
+  g.autoPlay();
+  assert.strictEqual(g.players[1].hand.length, 2);
+  assert.strictEqual(g.current().id, 'c');
+});
+
+test('Tempo scaduto: decisioni in sospeso', () => {
+  // +4 ricevuto: accetta
+  const w4 = c('wild', 'wild4');
+  let g = setup(three(), [[w4, c('blue', '1')], [c('red', '1')], [c('red', '2')]], c('red', '3'));
+  g.play('a', w4.id, 'green');
+  g.autoPlay();
+  assert.strictEqual(g.players[1].hand.length, 5);
+  assert.strictEqual(g.current().id, 'c');
+
+  // colore da scegliere: quello di cui ha più carte
+  g = gameWithFirst(three(), 'wild', 'wild');
+  g.players[1].hand = [c('blue', '1'), c('blue', '2'), c('red', '3')];
+  g.autoPlay();
+  assert.strictEqual(g.currentColor, 'blue');
+
+  // No Mercy: accumulo → pesca; 7 → scambia con chi ha meno carte
+  const d2 = c('red', 'draw2');
+  g = nmSetup(three(), [[d2, c('red', '9')], [c('green', '1')], [c('green', '2')]], c('red', '3'));
+  g.play('a', d2.id);
+  g.autoPlay();
+  assert.strictEqual(g.players[1].hand.length, 3);
+  const seven = c('red', '7');
+  g = nmSetup(three(), [[seven, c('red', '9'), c('red', '8')], [c('green', '1'), c('green', '2')], [c('green', '3')]], c('red', '3'));
+  g.play('a', seven.id);
+  g.autoPlay();
+  assert.strictEqual(g.players[2].hand.length, 2, 'c (1 carta) riceve la mano di a');
+  assert.strictEqual(g.players[0].hand.length, 1);
+});
+
+test('Tempo scaduto nel No Mercy: la carta pescata viene giocata', () => {
+  const g = nmSetup(three(), [[c('blue', '1')], [c('green', '1')], [c('green', '2')]], c('red', '3'));
+  const good = c('red', '8');
+  g.deck = [good, c('blue', '5')];
+  g.autoPlay();
+  assert.strictEqual(g.top().id, good.id);
+  assert.strictEqual(g.current().id, 'b');
+});

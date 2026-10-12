@@ -10,6 +10,10 @@ const { Game, GameError, MODES } = require('./game');
 const PORT = process.env.PORT || 3000;
 const MAX_PLAYERS = 10;
 const DISCONNECT_GRACE_MS = 90 * 1000;
+const TURN_TIMES = [0, 15, 30, 60]; // secondi per turno (0 = senza timer)
+const DEFAULT_TURN_TIME = 30;
+// durata di un "secondo" del timer: si può accorciare solo per i test automatici
+const MS_PER_SECOND = Number(process.env.TURN_MS_PER_SECOND) || 1000;
 
 const app = express();
 const server = http.createServer(app);
@@ -35,7 +39,43 @@ function cleanName(name) {
   return n || 'Giocatore';
 }
 
+// "Firma" del turno: cambia quando tocca a un altro o c'è una nuova decisione da prendere
+function turnKey(g) {
+  return [g.current().id, g.pending ? g.pending.type : '', g.hasDrawn, g.discard.length, g.side, g.eventSeq].join('|');
+}
+
+function clearTurnTimer(room) {
+  clearTimeout(room.timerHandle);
+  room.timerHandle = null;
+  room.timerKey = null;
+  room.timerDeadline = null;
+}
+
+// (Ri)avvia il timer del turno quando il turno cambia
+function armTurnTimer(room) {
+  const g = room.game;
+  if (!g || g.winner || !room.turnTime || !g.players.length) return clearTurnTimer(room);
+  const key = turnKey(g);
+  if (key === room.timerKey) return;
+  clearTimeout(room.timerHandle);
+  const ms = room.turnTime * MS_PER_SECOND;
+  room.timerKey = key;
+  room.timerDeadline = Date.now() + ms;
+  room.timerHandle = setTimeout(() => {
+    if (room.game !== g || g.winner || turnKey(g) !== key) return;
+    try {
+      g.autoPlay();
+      applyWinner(room);
+    } catch (e) {
+      console.error(e);
+    }
+    broadcast(room);
+  }, ms);
+}
+
 function broadcast(room) {
+  armTurnTimer(room);
+  const turnRemaining = room.timerDeadline ? Math.max(0, room.timerDeadline - Date.now()) : null;
   for (const m of room.members.values()) {
     if (!m.connected || !m.socketId) continue;
     let game = null;
@@ -59,6 +99,9 @@ function broadcast(room) {
       modes: Object.fromEntries(Object.entries(MODES).map(([k, v]) => [k, v.name])),
       targetScore: MODES[room.mode].target,
       matchWinner: room.matchWinner,
+      turnTime: room.turnTime,
+      turnTimes: TURN_TIMES,
+      turnRemaining,
     });
   }
 }
@@ -70,6 +113,7 @@ function removeMember(room, playerId) {
   room.members.delete(playerId);
   if (room.game) room.game.removePlayer(playerId);
   if (room.members.size === 0) {
+    clearTurnTimer(room);
     rooms.delete(room.code);
     return;
   }
@@ -134,7 +178,7 @@ io.on('connection', (socket) => {
     if (room) return;
     const code = newRoomCode();
     const id = crypto.randomUUID();
-    const r = { code, hostId: id, members: new Map(), game: null, dealer: -1, matchWinner: null, mode: 'classic' };
+    const r = { code, hostId: id, members: new Map(), game: null, dealer: -1, matchWinner: null, mode: 'classic', turnTime: DEFAULT_TURN_TIME };
     r.members.set(id, { id, name: cleanName(name), socketId: null, connected: false, score: startScore(r), timer: null });
     rooms.set(code, r);
     attach(r, r.members.get(id));
@@ -181,6 +225,14 @@ io.on('connection', (socket) => {
     room.matchWinner = null;
     room.game = null;
     for (const m of room.members.values()) m.score = startScore(room);
+    broadcast(room);
+  });
+
+  // L'host sceglie quanti secondi ha ciascuno per il proprio turno
+  socket.on('timer', (seconds) => {
+    if (!room || room.hostId !== playerId || !TURN_TIMES.includes(seconds)) return;
+    room.turnTime = seconds;
+    clearTurnTimer(room);
     broadcast(room);
   });
 

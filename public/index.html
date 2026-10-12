@@ -67,6 +67,10 @@
     </div>
     <p id="modeHint" class="muted"></p>
     <button id="rulesBtn" class="btn small ghost">❓ Come si gioca questa modalità</button>
+    <div class="timer-choice">
+      <span>⏱ Tempo per turno</span>
+      <div id="timerChoice" class="segmented"></div>
+    </div>
     <ul id="memberList" class="members"></ul>
     <button id="startBtn" class="btn primary big">Inizia partita</button>
     <p id="waitHost" class="muted">In attesa che l'host avvii la partita…</p>
@@ -128,6 +132,7 @@
     <div class="actions">
       <button id="takeBtn" class="btn small danger hidden"></button>
       <button id="passBtn" class="btn small hidden">Passa</button>
+      <div id="myTimer" class="timer-ring big hidden" title="Tempo rimasto per il tuo turno"><span></span></div>
       <button id="unoBtn" class="btn uno">UNO!</button>
       <span id="myChips" class="chips-badge hidden"></span>
     </div>

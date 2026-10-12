@@ -1010,3 +1010,44 @@ html.dark-side .modal-box { background: linear-gradient(160deg, #3d2659, #1c1029
   .hint { font-size: 13px; border-radius: 14px; }
 }
 @media (max-width: 760px) { .top-actions .lbl { display: none; } }
+
+/* --- Timer del turno --- */
+.timer-choice { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center; color: var(--muted); font-size: 14px; }
+.segmented { display: inline-flex; background: rgba(0, 0, 0, 0.3); border-radius: 999px; padding: 3px; border: 1px solid var(--panel-border); }
+.segmented button {
+  font: inherit;
+  font-weight: 800;
+  font-size: 13px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  padding: 6px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.segmented button.selected { background: var(--yellow); color: var(--ink); }
+.segmented button:disabled { cursor: default; }
+.segmented button:disabled:not(.selected) { opacity: 0.6; }
+
+/* anello che si svuota con il tempo */
+.timer-ring {
+  --p: 1;
+  --ring: var(--yellow);
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(closest-side, #12382b 72%, transparent 74% 100%),
+    conic-gradient(var(--ring) calc(var(--p) * 360deg), rgba(255, 255, 255, 0.15) 0);
+  font-family: var(--font-display);
+  font-size: 13px;
+  color: #fff;
+  flex-shrink: 0;
+}
+.timer-ring.big { width: 46px; height: 46px; font-size: 18px; }
+.timer-ring.urgent { --ring: var(--red); animation: pulse 0.5s ease-in-out infinite alternate; }
+.opp .timer-ring { position: absolute; top: -12px; left: -12px; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4); }
+html.dark-side .timer-ring { background: radial-gradient(closest-side, #241536 72%, transparent 74% 100%), conic-gradient(var(--ring) calc(var(--p) * 360deg), rgba(255, 255, 255, 0.15) 0); }
