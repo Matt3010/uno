@@ -59,6 +59,11 @@
         <b>Show 'Em No Mercy</b>
         <span>+6, +10 e accumulo, il 7 scambia e lo 0 passa le mani, si pesca finché puoi giocare. Con 25 carte sei fuori!</span>
       </button>
+      <button class="mode gambling" data-mode="gambling">
+        <div class="mode-art emoji-art"><i>🎰</i><i>🎲</i><i>💰</i></div>
+        <b>UNO Casinò</b>
+        <span>Fiches finte, piatto a ogni mano, slot machine, dadi e rilanci. Vince chi arriva a 500 fiches o resta l'ultimo con le fiches!</span>
+      </button>
     </div>
     <p id="modeHint" class="muted"></p>
     <ul id="memberList" class="members"></ul>
@@ -77,16 +82,40 @@
 
     <div id="opponents" class="opponents"></div>
 
-    <div class="center">
-      <div class="pile">
+    <div class="center" id="center">
+      <div class="pile deck-pile">
         <button id="deck" class="card back" title="Pesca"><div class="inner"><span class="logo-mini">UNO</span></div></button>
         <div class="deck-count" id="deckCount"></div>
       </div>
-      <div class="pile">
+      <div class="pile discard-pile">
         <div id="discard" class="discard"></div>
         <div id="colorDot" class="color-dot"></div>
       </div>
       <div class="direction" id="direction">⟳</div>
+      <div id="potBox" class="pot hidden" title="Il piatto: lo vince chi finisce le carte">
+        <div class="pot-chips"><i></i><i></i><i></i></div>
+        <b id="potAmount"></b>
+        <span>piatto</span>
+      </div>
+      <!-- Casinò: slot machine e dadi sul tavolo -->
+      <div id="casinoTable" class="casino-table hidden">
+        <div class="slot-cabinet" id="slotMachine">
+          <div class="slot-marquee"><span>JACKPOT</span></div>
+          <div class="slot-bulbs"></div>
+          <div class="slot-window">
+            <div class="reel"><div class="strip"><span>7️⃣</span></div></div>
+            <div class="reel"><div class="strip"><span>7️⃣</span></div></div>
+            <div class="reel"><div class="strip"><span>7️⃣</span></div></div>
+          </div>
+          <div class="slot-tray"></div>
+          <div class="lever" id="slotLever"><div class="lever-arm"></div><div class="lever-knob"></div></div>
+        </div>
+        <div class="dice-tray">
+          <div class="die3d" id="die1"><div class="die-tilt"><div class="cube"></div></div></div>
+          <div class="die3d" id="die2"><div class="die-tilt"><div class="cube"></div></div></div>
+        </div>
+        <div id="casinoMsg" class="casino-msg"></div>
+      </div>
     </div>
 
     <div id="pendingInfo" class="pending-info hidden"></div>
@@ -95,6 +124,7 @@
       <button id="takeBtn" class="btn small danger hidden"></button>
       <button id="passBtn" class="btn small hidden">Passa</button>
       <button id="unoBtn" class="btn uno">UNO!</button>
+      <span id="myChips" class="chips-badge hidden"></span>
     </div>
 
     <div id="hand" class="hand"></div>

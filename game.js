@@ -7,7 +7,14 @@ const MODES = {
   classic: { name: 'UNO Classico', target: 500 },
   flip: { name: 'UNO Flip', target: 500 },
   nomercy: { name: "UNO Show 'Em No Mercy", target: 1000 },
+  gambling: { name: 'UNO Casinò', target: 500, startChips: 100 },
 };
+
+// UNO Casinò
+const ANTE = 10; // fiches messe nel piatto a inizio mano (e con il Rilancio)
+const CHIPS_PER_CARD = 2; // ogni avversario paga al vincitore per ogni carta rimasta
+const CATCH_FINE = 10; // chi viene beccato senza UNO paga chi l'ha beccato
+const SLOT_SYMBOLS = ['🍒', '🍋', '🔔', '💎', '7️⃣'];
 
 // Carte "pesca" e quante carte fanno pescare
 const DRAW_VALUE = { draw1: 1, draw2: 2, draw4: 4, draw5: 5, wild4: 4, wild2: 2, wildrev4: 4, wild6: 6, wild10: 10 };
@@ -80,12 +87,25 @@ function createNoMercyDeck() {
   return deck;
 }
 
-const DECKS = { classic: createDeck, flip: createFlipDeck, nomercy: createNoMercyDeck };
+// UNO Casinò: mazzo classico + Slot (Jolly), Dadi e Rilancio (colorati)
+function createCasinoDeck() {
+  const deck = createDeck();
+  const add = (color, value) => deck.push({ id: deck.length, color, value });
+  for (const color of COLORS) {
+    repeat(2, () => add(color, 'dice'));
+    add(color, 'raise');
+  }
+  repeat(4, () => add('wild', 'slot'));
+  return deck;
+}
+
+const DECKS = { classic: createDeck, flip: createFlipDeck, nomercy: createNoMercyDeck, gambling: createCasinoDeck };
 
 // --- Punteggi ---
 
 const POINTS = {
   classic: { skip: 20, reverse: 20, draw2: 20, wild: 50, wild4: 50 },
+  gambling: { skip: 20, reverse: 20, draw2: 20, dice: 20, raise: 20, wild: 50, wild4: 50, slot: 50 },
   flip: {
     draw1: 10, skip: 20, flip: 20, wild: 40, wild2: 50, // lato chiaro
     draw5: 20, skipall: 30, wildcolor: 60, reverse: 20, // lato scuro
@@ -111,7 +131,7 @@ class GameError extends Error {}
  *   swap      – No Mercy: ha giocato un 7 e sceglie con chi scambiare la mano
  */
 class Game {
-  constructor(players, { dealer, mode = 'classic' } = {}) {
+  constructor(players, { dealer, mode = 'classic', chips = {}, rng = Math.random } = {}) {
     if (players.length < 2) throw new GameError('Servono almeno 2 giocatori');
     if (!MODES[mode]) throw new GameError('Modalità sconosciuta');
     this.mode = mode;
@@ -129,9 +149,22 @@ class Game {
     this.eliminated = []; // No Mercy: nomi degli eliminati in questa mano
     this.winner = null;
     this.log = [];
+    this.rng = rng;
+    // UNO Casinò: fiches di ciascuno, piatto e ultimo evento (slot/dadi) da animare
+    this.chips = {};
+    this.pot = 0;
+    this.event = null;
+    this.eventSeq = 0;
 
     for (let i = 0; i < 7; i++) {
       for (const p of this.players) p.hand.push(this.drawOne());
+    }
+
+    if (this.casino) {
+      for (const p of this.players) {
+        this.chips[p.id] = Math.max(0, Math.floor(chips[p.id] || 0));
+        this.pot += this.takeChips(p.id, ANTE);
+      }
     }
 
     let first = this.drawOne();
@@ -158,6 +191,21 @@ class Game {
     return this.mode === 'nomercy';
   }
 
+  get casino() {
+    return this.mode === 'gambling';
+  }
+
+  // Toglie fino ad "amount" fiches a un giocatore e restituisce quante ne ha tolte
+  takeChips(id, amount) {
+    const n = Math.min(amount, this.chips[id] || 0);
+    this.chips[id] = (this.chips[id] || 0) - n;
+    return n;
+  }
+
+  giveChips(id, amount) {
+    this.chips[id] = (this.chips[id] || 0) + amount;
+  }
+
   colors() {
     return this.isFlip && this.side === 'dark' ? DARK_COLORS : COLORS;
   }
@@ -173,7 +221,7 @@ class Game {
 
   validFirstCard(f) {
     if (this.noMercy) return /^\d$/.test(f.value); // regola No Mercy: solo numeri
-    return !['wild4', 'wild2', 'flip'].includes(f.value);
+    return !['wild4', 'wild2', 'flip', 'slot', 'dice', 'raise'].includes(f.value);
   }
 
   // Effetto della prima carta scoperta
@@ -417,6 +465,20 @@ class Game {
       case 'flip':
         this.flipAll(player);
         break;
+      case 'slot':
+        this.spinSlot(player);
+        break;
+      case 'dice':
+        this.rollDice(player);
+        break;
+      case 'raise': {
+        let total = 0;
+        for (const p of this.players) total += this.takeChips(p.id, ANTE);
+        this.pot += total;
+        this.addLog(`💰 Rilancio! Tutti mettono ${ANTE} fiches: nel piatto ora ci sono ${this.pot} fiches`);
+        this.advance(1);
+        break;
+      }
       case 'roulette':
         this.advance(1);
         this.pending = { type: 'roulette' };
@@ -447,6 +509,67 @@ class Game {
     if (f.value === 'wildcolor') n = this.drawUntilColor(victim, this.currentColor);
     else if (DRAW_VALUE[f.value]) n = this.draw(victim, DRAW_VALUE[f.value]);
     if (n) this.addLog(`${victim.name} pesca ${n} ${n === 1 ? 'carta' : 'carte'}`);
+  }
+
+  // UNO Casinò: slot machine
+  spinSlot(player) {
+    const reels = [0, 1, 2].map(() => SLOT_SYMBOLS[Math.floor(this.rng() * SLOT_SYMBOLS.length)]);
+    const others = this.players.filter((p) => p.id !== player.id);
+    const distinct = new Set(reels).size;
+    let text;
+    if (distinct === 1 && reels[0] === '7️⃣') {
+      this.giveChips(player.id, 100);
+      for (const p of others) this.draw(p, 3);
+      text = `JACKPOT! ${player.name} vince 100 fiches e tutti gli altri pescano 3 carte`;
+    } else if (distinct === 1) {
+      this.giveChips(player.id, 30);
+      for (const p of others) this.draw(p, 2);
+      text = `Tris! ${player.name} vince 30 fiches e tutti gli altri pescano 2 carte`;
+    } else if (distinct === 2) {
+      this.giveChips(player.id, 10);
+      const next = this.players[this.nextIndex()];
+      this.draw(next, 1);
+      text = `Coppia! ${player.name} vince 10 fiches e ${next.name} pesca 1 carta`;
+    } else {
+      this.pot += this.takeChips(player.id, ANTE);
+      this.draw(player, 1);
+      text = `Niente... il banco vince: ${player.name} mette ${ANTE} fiches nel piatto e pesca 1 carta`;
+    }
+    this.setEvent({ type: 'slot', playerId: player.id, reels, text });
+    this.advance(1);
+  }
+
+  // UNO Casinò: dadi
+  rollDice(player) {
+    const dice = [1 + Math.floor(this.rng() * 6), 1 + Math.floor(this.rng() * 6)];
+    const sum = dice[0] + dice[1];
+    const next = this.players[this.nextIndex()];
+    let text;
+    let steps = 1;
+    if (dice[0] === dice[1]) {
+      this.giveChips(player.id, 10 * dice[0]);
+      text = `Doppio ${dice[0]}! ${player.name} vince ${10 * dice[0]} fiches e gioca ancora`;
+      steps = 0;
+    } else if (sum === 7) {
+      for (const p of this.players) if (p.id !== player.id) this.draw(p, 1);
+      text = 'Sette! Tutti gli altri pescano 1 carta';
+    } else if (sum >= 10) {
+      this.draw(next, 2);
+      text = `${sum}! ${next.name} pesca 2 carte e salta il turno`;
+      steps = 2;
+    } else if (sum <= 4) {
+      this.draw(player, 2);
+      text = `${sum}... ${player.name} pesca 2 carte`;
+    } else {
+      text = `${sum}: non succede niente`;
+    }
+    this.setEvent({ type: 'dice', playerId: player.id, dice, text });
+    this.advance(steps);
+  }
+
+  setEvent(ev) {
+    this.event = { ...ev, seq: ++this.eventSeq };
+    this.addLog(`${ev.type === 'slot' ? '🎰 ' + ev.reels.join(' ') : '🎲 ' + ev.dice.join(' + ')} → ${ev.text}`);
   }
 
   // UNO Flip: si girano mazzo, pila degli scarti e tutte le mani
@@ -639,6 +762,11 @@ class Game {
     this.draw(target, 2);
     this.unoVulnerable = null;
     this.addLog(`${catcher.name} becca ${target.name} senza UNO: +2 carte!`);
+    if (this.casino) {
+      const fine = this.takeChips(target.id, CATCH_FINE);
+      this.giveChips(catcher.id, fine);
+      if (fine) this.addLog(`${target.name} paga ${fine} fiches a ${catcher.name}`);
+    }
     this.checkMercy();
   }
 
@@ -693,6 +821,18 @@ class Game {
     }
     if (this.noMercy) points += ELIMINATION_POINTS * this.eliminated.length;
     this.pending = null;
+    if (this.casino) {
+      // il vincitore prende il piatto e 2 fiches per ogni carta rimasta agli avversari
+      let won = this.pot;
+      for (const p of this.players) {
+        if (p.id !== player.id) won += this.takeChips(p.id, CHIPS_PER_CARD * p.hand.length);
+      }
+      this.pot = 0;
+      this.giveChips(player.id, won);
+      this.winner = { id: player.id, name: player.name, points: won };
+      this.addLog(`🏆 ${player.name} vince la mano e incassa ${won} fiches!`);
+      return;
+    }
     this.winner = { id: player.id, name: player.name, points };
     this.addLog(`🏆 ${player.name} vince la mano (+${points} punti)!`);
   }
@@ -712,6 +852,7 @@ class Game {
         name: pl.name,
         cardCount: pl.hand.length,
         saidUno: pl.saidUno && pl.hand.length === 1,
+        chips: this.casino ? this.chips[pl.id] : null,
         // in Flip si vede il retro (l'altra faccia) delle carte degli avversari
         backs: this.isFlip && pl.id !== playerId ? pl.hand.map((c) => this.otherFace(c)) : null,
       })),
@@ -732,6 +873,8 @@ class Game {
         : null,
       unoVulnerable: this.unoVulnerable,
       eliminated: this.eliminated,
+      pot: this.casino ? this.pot : null,
+      event: this.event,
       winner: this.winner,
       log: this.log.slice(-14),
     };
@@ -747,6 +890,7 @@ const VALUE_NAMES = {
   skipall: 'Salta tutti', flip: 'Flip', discardall: 'Scarta tutto',
   wild: 'Jolly', wild4: 'Jolly +4', wild2: 'Jolly +2', wildcolor: 'Jolly pesca colore',
   wildrev4: 'Jolly inverti +4', wild6: 'Jolly +6', wild10: 'Jolly +10', roulette: 'Roulette dei colori',
+  slot: 'Slot machine', dice: 'Dadi', raise: 'Rilancio',
 };
 
 function colorName(c) {

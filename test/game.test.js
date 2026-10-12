@@ -476,3 +476,113 @@ test('eliminazione dell\'ultimo avversario: turno valido e vista generabile', ()
   assert.doesNotThrow(() => g.viewFor('a'));
   assert.doesNotThrow(() => g.viewFor('b'));
 });
+
+// ---------------- UNO Casinò ----------------
+const chips100 = (ps) => Object.fromEntries(ps.map((p) => [p.id, 100]));
+
+function casinoSetup(players, hands, top, rolls = [], turn = 0) {
+  const g = new Game(players, { mode: 'gambling', chips: chips100(players) });
+  g.turn = turn;
+  g.direction = 1;
+  g.pending = null;
+  g.players.forEach((p, i) => { p.hand = hands[i]; });
+  g.discard = [top];
+  g.currentColor = top.color;
+  g.log = [];
+  const seq = [...rolls];
+  g.rng = () => seq.shift();
+  return g;
+}
+// valore di rng che fa uscire un certo indice (su n possibilità)
+const pick = (i, n) => (i + 0.5) / n;
+
+test('Casinò: mazzo, puntata iniziale nel piatto', () => {
+  const g = new Game(three(), { mode: 'gambling', chips: chips100(three()) });
+  assert.strictEqual(g.deck.length + g.discard.length + 21 + (g.top().value === 'draw2' ? 2 : 0), 108 + 16);
+  assert.strictEqual(g.pot, 30);
+  assert.deepStrictEqual(Object.values(g.chips), [90, 90, 90]);
+  assert.ok(!['slot', 'dice', 'raise'].includes(g.top().value));
+});
+
+test('Casinò: slot machine', () => {
+  const slot = () => c('wild', 'slot');
+  // jackpot 7-7-7
+  let s1 = slot();
+  let g = casinoSetup(three(), [[s1, c('red', '1')], [c('red', '2')], [c('red', '3')]], c('red', '5'), [pick(4, 5), pick(4, 5), pick(4, 5)]);
+  g.play('a', s1.id, 'blue');
+  assert.strictEqual(g.chips.a, 190);
+  assert.strictEqual(g.players[1].hand.length, 4);
+  assert.strictEqual(g.event.type, 'slot');
+  assert.deepStrictEqual(g.event.reels, ['7️⃣', '7️⃣', '7️⃣']);
+  assert.strictEqual(g.current().id, 'b');
+
+  // coppia: +10 e il successivo pesca 1
+  s1 = slot();
+  g = casinoSetup(three(), [[s1, c('red', '1')], [c('red', '2')], [c('red', '3')]], c('red', '5'), [pick(0, 5), pick(0, 5), pick(2, 5)]);
+  g.play('a', s1.id, 'blue');
+  assert.strictEqual(g.chips.a, 100);
+  assert.strictEqual(g.players[1].hand.length, 2);
+  assert.strictEqual(g.players[2].hand.length, 1);
+
+  // niente: paga 10 nel piatto e pesca 1
+  s1 = slot();
+  g = casinoSetup(three(), [[s1, c('red', '1')], [c('red', '2')], [c('red', '3')]], c('red', '5'), [pick(0, 5), pick(1, 5), pick(2, 5)]);
+  const pot = g.pot;
+  g.play('a', s1.id, 'blue');
+  assert.strictEqual(g.chips.a, 80);
+  assert.strictEqual(g.pot, pot + 10);
+  assert.strictEqual(g.players[0].hand.length, 2);
+});
+
+test('Casinò: dadi', () => {
+  const roll = (a, b) => [pick(a - 1, 6), pick(b - 1, 6)];
+  // doppio: vince e gioca ancora
+  let d = c('red', 'dice');
+  let g = casinoSetup(three(), [[d, c('red', '1')], [c('red', '2')], [c('red', '3')]], c('red', '5'), roll(4, 4));
+  g.play('a', d.id);
+  assert.strictEqual(g.chips.a, 130);
+  assert.strictEqual(g.current().id, 'a');
+  // sette: tutti gli altri pescano 1
+  d = c('red', 'dice');
+  g = casinoSetup(three(), [[d, c('red', '1')], [c('red', '2')], [c('red', '3')]], c('red', '5'), roll(3, 4));
+  g.play('a', d.id);
+  assert.deepStrictEqual(g.players.map((p) => p.hand.length), [1, 2, 2]);
+  assert.strictEqual(g.current().id, 'b');
+  // 10 o più: il successivo pesca 2 e salta
+  d = c('red', 'dice');
+  g = casinoSetup(three(), [[d, c('red', '1')], [c('red', '2')], [c('red', '3')]], c('red', '5'), roll(5, 6));
+  g.play('a', d.id);
+  assert.strictEqual(g.players[1].hand.length, 3);
+  assert.strictEqual(g.current().id, 'c');
+  // 4 o meno: pesca chi ha lanciato
+  d = c('red', 'dice');
+  g = casinoSetup(three(), [[d, c('red', '1')], [c('red', '2')], [c('red', '3')]], c('red', '5'), roll(1, 2));
+  g.play('a', d.id);
+  assert.strictEqual(g.players[0].hand.length, 3);
+});
+
+test('Casinò: rilancio, multa UNO e vincita del piatto', () => {
+  const r = c('red', 'raise');
+  const last = c('red', '5');
+  const g = casinoSetup(three(), [[r, last, c('blue', '1')], [c('red', '2'), c('blue', 'skip')], [c('red', '3')]], c('red', '7'));
+  g.play('a', r.id); // tutti +10 nel piatto: 60
+  assert.strictEqual(g.pot, 60);
+  assert.deepStrictEqual(Object.values(g.chips), [80, 80, 80]);
+  g.play('b', g.players[1].hand[0].id); // b resta con 1 carta senza UNO
+  g.catchUno('c', 'b');
+  assert.strictEqual(g.chips.b, 70);
+  assert.strictEqual(g.chips.c, 90);
+  // c gioca l'ultima carta: vince piatto + 2 fiches per carta degli avversari
+  g.play('c', g.players[2].hand[0].id);
+  assert.strictEqual(g.winner.id, 'c');
+  const expected = 60 + 2 * 2 + 2 * 3;
+  assert.strictEqual(g.winner.points, expected);
+  assert.strictEqual(g.chips.c, 90 + expected);
+  assert.strictEqual(g.pot, 0);
+});
+
+test('Casinò: chi è senza fiches non paga', () => {
+  const g = new Game(two(), { mode: 'gambling', chips: { a: 0, b: 5 } });
+  assert.strictEqual(g.pot, 5);
+  assert.deepStrictEqual(g.chips, { a: 0, b: 0 });
+});

@@ -8,7 +8,9 @@ const SYMBOLS = {
   skipall: '⊘⊘', flip: 'FLIP', discardall: '⇊',
   wild: '★', wild4: '+4', wild2: '+2', wildcolor: '+?',
   wildrev4: '⇄4', wild6: '+6', wild10: '+10', roulette: '?',
+  slot: '🎰', dice: '🎲', raise: '💰',
 };
+const EMOJI_CARDS = ['slot', 'dice', 'raise'];
 const VALUE_NAMES = {
   wild4: 'Jolly +4', wild2: 'Jolly +2', wildcolor: 'Jolly pesca colore',
 };
@@ -204,7 +206,8 @@ function cardEl(card, tag = 'div') {
   const el = document.createElement(tag);
   el.className = `card ${card.color}`;
   const label = SYMBOLS[card.value] || card.value;
-  if (label.length > 2 || card.value === 'skipall') el.classList.add('long');
+  if (EMOJI_CARDS.includes(card.value)) el.classList.add('emoji');
+  else if (label.length > 2 || card.value === 'skipall') el.classList.add('long');
   const val = document.createElement('span');
   val.className = 'val';
   val.textContent = label;
@@ -249,6 +252,7 @@ const CARD_NAMES = {
   skip: 'Salta', reverse: 'Inverti', draw1: '+1', draw2: '+2', draw4: '+4', draw5: '+5',
   skipall: 'Salta tutti', flip: 'Flip', discardall: 'Scarta tutto', wild: 'Jolly',
   wildrev4: 'Jolly inverti +4', wild6: 'Jolly +6', wild10: 'Jolly +10', roulette: 'Roulette dei colori',
+  slot: 'Slot machine', dice: 'Dadi', raise: 'Rilancio',
   ...VALUE_NAMES,
 };
 function describeCard(c) {
@@ -342,6 +346,12 @@ function render() {
   $('colorDot').style.background = g.currentColor ? `var(--${g.currentColor})` : 'transparent';
   $('colorDot').style.color = g.currentColor ? `var(--${g.currentColor})` : 'transparent';
   $('deckCount').textContent = `${g.deckCount} carte`;
+  // Casinò: piatto e fiches
+  $('potBox').classList.toggle('hidden', g.pot == null);
+  if (g.pot != null) $('potAmount').textContent = g.pot;
+  const meP = g.players.find((p) => p.id === s.you);
+  $('myChips').classList.toggle('hidden', !meP || meP.chips == null);
+  if (meP && meP.chips != null) $('myChips').textContent = `🪙 ${meP.chips} fiches`;
   $('direction').classList.toggle('ccw', g.direction === -1);
 
   // Mazzo: in Flip si vede il retro della prima carta
@@ -444,8 +454,162 @@ function render() {
 
   renderRoundEnd(s, g, isHost);
   if (prevG) animateChanges(prevG, g, s, before);
+  // Casinò: slot machine o dadi appena giocati
+  $('casinoTable').classList.toggle('hidden', g.mode !== 'gambling');
+  $('center').classList.toggle('casino', g.mode === 'gambling');
+  if (g.event && (!prevG || !prevG.event || prevG.event.seq !== g.event.seq)) {
+    if (prevG) showCasinoEvent(g);
+    else showCasinoStatic(g);
+  }
   lastGame = g;
 }
+
+// --- Casinò: slot machine e dadi sul tavolo ---
+const SLOT_SYMBOLS = ['🍒', '🍋', '🔔', '💎', '7️⃣'];
+const PIPS = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
+// rotazione del cubo che porta la faccia n davanti
+const DIE_ROT = { 1: [0, 0], 2: [0, -90], 3: [-90, 0], 4: [90, 0], 5: [0, 90], 6: [0, 180] };
+const DIE_TILT = { die1: -8, die2: 11 };
+let msgTimer = null;
+let resultTimer = null; // risultato in attesa che finisca l'animazione
+
+function dieFace(el, n) {
+  el.innerHTML = '';
+  for (let i = 0; i < 9; i++) {
+    const pip = document.createElement('i');
+    if (PIPS[n].includes(i)) pip.className = 'on';
+    el.append(pip);
+  }
+}
+
+// costruisce le 6 facce di ogni dado
+for (const id of ['die1', 'die2']) {
+  const cube = document.querySelector(`#${id} .cube`);
+  for (let n = 1; n <= 6; n++) {
+    // cubo interno pieno: chiude i buchi lasciati dagli angoli arrotondati delle facce
+    const core = document.createElement('div');
+    core.className = `core f${n}`;
+    cube.append(core);
+  }
+  for (let n = 1; n <= 6; n++) {
+    const face = document.createElement('div');
+    face.className = `face f${n}`;
+    dieFace(face, n);
+    cube.append(face);
+  }
+}
+
+function dieTransform(n) {
+  const [x, y] = DIE_ROT[n];
+  return `rotateX(${x}deg) rotateY(${y}deg)`;
+}
+
+function setDice(values) {
+  ['die1', 'die2'].forEach((id, i) => {
+    $(id).style.transform = `rotateZ(${DIE_TILT[id]}deg)`;
+    document.querySelector(`#${id} .cube`).style.transform = dieTransform(values[i]);
+  });
+}
+
+function setReels(symbols) {
+  document.querySelectorAll('#slotMachine .strip').forEach((strip, i) => {
+    strip.getAnimations().forEach((a) => a.cancel());
+    strip.innerHTML = `<span>${symbols[i]}</span>`;
+    strip.style.transform = '';
+  });
+}
+
+function rollDice(values) {
+  ['die1', 'die2'].forEach((id, i) => {
+    const wrap = $(id);
+    const cube = wrap.querySelector('.cube');
+    const [x, y] = DIE_ROT[values[i]];
+    const tilt = DIE_TILT[id];
+    const dir = i ? 1 : -1;
+    // il dado entra dal bordo del tavolo, rimbalza e si ferma
+    wrap.animate(
+      [
+        { transform: `translate(${dir * 90}px, -70px) rotateZ(${tilt - 200}deg)`, opacity: 0 },
+        { transform: `translate(${dir * 40}px, 4px) rotateZ(${tilt - 80}deg)`, opacity: 1, offset: 0.45 },
+        { transform: `translate(${dir * 14}px, -12px) rotateZ(${tilt - 25}deg)`, offset: 0.7 },
+        { transform: `translate(${dir * 4}px, 0) rotateZ(${tilt - 6}deg)`, offset: 0.88 },
+        { transform: `rotateZ(${tilt}deg)` },
+      ],
+      { duration: 1100, easing: 'ease-out' },
+    );
+    cube.animate(
+      [{ transform: `rotateX(${x - 720 - i * 180}deg) rotateY(${y + 540 + i * 90}deg)` }, { transform: dieTransform(values[i]) }],
+      { duration: 1100, easing: 'cubic-bezier(.15,.7,.3,1)' },
+    );
+    wrap.style.transform = `rotateZ(${tilt}deg)`;
+    cube.style.transform = dieTransform(values[i]);
+  });
+  return 1100;
+}
+
+function spinSlot(final) {
+  const lever = $('slotLever');
+  lever.classList.remove('pull');
+  void lever.offsetWidth; // riavvia l'animazione della leva
+  lever.classList.add('pull');
+  let longest = 0;
+  document.querySelectorAll('#slotMachine .strip').forEach((strip, i) => {
+    const current = strip.lastElementChild ? strip.lastElementChild.textContent : '7️⃣';
+    strip.getAnimations().forEach((a) => a.cancel());
+    const symbols = [current];
+    for (let k = 0; k < 16 + i * 5; k++) symbols.push(SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)]);
+    symbols.push(final[i]);
+    strip.innerHTML = symbols.map((sym) => `<span>${sym}</span>`).join('');
+    const duration = 1100 + i * 450;
+    longest = Math.max(longest, duration);
+    strip.animate(
+      [{ transform: 'translateY(0)' }, { transform: `translateY(calc(-${symbols.length - 1} * var(--reel-h)))` }],
+      { duration, delay: 250, easing: 'cubic-bezier(.12,.6,.25,1.04)', fill: 'forwards' },
+    );
+  });
+  return longest + 250;
+}
+
+function casinoMessage(text, jackpot) {
+  const msg = $('casinoMsg');
+  msg.textContent = text;
+  msg.classList.add('show');
+  $('slotMachine').classList.toggle('jackpot', !!jackpot);
+  clearTimeout(msgTimer);
+  msgTimer = setTimeout(() => {
+    msg.classList.remove('show');
+    $('slotMachine').classList.remove('jackpot');
+  }, 4500);
+}
+
+// Prima volta al tavolo (o riconnessione): mostra l'ultimo risultato senza animazioni
+function showCasinoStatic(g) {
+  const ev = g.event;
+  if (!ev) return;
+  if (ev.type === 'slot') setReels(ev.reels);
+  else setDice(ev.dice);
+}
+
+function showCasinoEvent(g) {
+  const ev = g.event;
+  const who = playerName(g, ev.playerId);
+  const jackpot = ev.text.startsWith('JACKPOT');
+  let wait = 0;
+  if (reduceMotion) {
+    showCasinoStatic(g);
+  } else if (ev.type === 'slot') {
+    wait = spinSlot(ev.reels);
+  } else {
+    wait = rollDice(ev.dice);
+  }
+  casinoMessage(ev.type === 'slot' ? `🎰 ${who} tira la leva…` : `🎲 ${who} lancia i dadi…`);
+  clearTimeout(resultTimer); // un nuovo lancio sostituisce il risultato del precedente
+  resultTimer = setTimeout(() => {
+    casinoMessage(`${ev.type === 'slot' ? '🎰' : '🎲'} ${ev.text}`, jackpot);
+    if (jackpot) confetti(120);
+  }, wait);
+}
+setDice([6, 6]);
 
 // --- Mano a ventaglio ---
 function fanHand(hand) {
@@ -656,7 +820,14 @@ function renderOpponents(s, g) {
     count.className = 'count';
     count.textContent = `${p.cardCount} ${p.cardCount === 1 ? 'carta' : 'carte'}`;
     if (g.mode === 'nomercy' && p.cardCount >= 20) count.textContent += ' ⚠️';
+
     d.append(name, minis, count);
+    if (p.chips != null) {
+      const chips = document.createElement('div');
+      chips.className = 'opp-chips' + (p.chips === 0 ? ' broke' : '');
+      chips.textContent = `🪙 ${p.chips}`;
+      d.append(chips);
+    }
     if (p.saidUno) {
       const b = document.createElement('div');
       b.className = 'uno-badge';
@@ -689,11 +860,21 @@ function renderRoundEnd(s, g, isHost) {
   $('roundEnd').classList.remove('hidden');
   const mw = s.matchWinner;
   if (mw) {
-    $('winnerText').textContent = mw.id === s.you ? `Hai vinto la partita con ${mw.score} punti!` : `${mw.name} vince la partita con ${mw.score} punti!`;
+    const u = g.mode === 'gambling' ? 'fiches' : 'punti';
+    $('winnerText').textContent = mw.id === s.you ? `Hai vinto la partita con ${mw.score} ${u}!` : `${mw.name} vince la partita con ${mw.score} ${u}!`;
   } else {
     $('winnerText').textContent = g.winner.id === s.you ? 'Hai vinto la mano!' : `${g.winner.name} vince la mano!`;
   }
-  $('targetText').textContent = mw ? 'Fine partita' : `Vince la partita chi arriva a ${s.targetScore} punti`;
+  const casino = g.mode === 'gambling';
+  const unit = casino ? 'fiches' : 'pt';
+  if (casino && !mw) {
+    $('winnerText').textContent += ` (+${g.winner.points} fiches)`;
+  }
+  $('targetText').textContent = mw
+    ? 'Fine partita'
+    : casino
+      ? `Vince chi arriva a ${s.targetScore} fiches o resta l'ultimo con le fiches`
+      : `Vince la partita chi arriva a ${s.targetScore} punti`;
   $('nextRoundBtn').textContent = mw ? 'Nuova partita' : 'Nuova mano';
   const table = $('scoreTable');
   table.innerHTML = '';
@@ -702,7 +883,7 @@ function renderRoundEnd(s, g, isHost) {
     const a = document.createElement('td');
     a.textContent = m.name;
     const b = document.createElement('td');
-    b.textContent = `${m.score} pt`;
+    b.textContent = `${m.score} ${unit}`;
     tr.append(a, b);
     table.append(tr);
   }
