@@ -639,3 +639,65 @@ test('Tempo scaduto nel No Mercy: la carta pescata viene giocata', () => {
   assert.strictEqual(g.top().id, good.id);
   assert.strictEqual(g.current().id, 'b');
 });
+
+test('la vista dice chi gioca dopo, anche dopo un cambio di direzione', () => {
+  const rev = c('red', 'reverse');
+  const g = setup(three(), [[rev, c('blue', '1')], [c('red', '1')], [c('red', '2')]], c('red', '3'));
+  assert.strictEqual(g.viewFor('a').nextId, 'b');
+  g.play('a', rev.id);
+  assert.strictEqual(g.viewFor('a').turnId, 'c');
+  assert.strictEqual(g.viewFor('a').nextId, 'b');
+});
+
+test('la vista annuncia chi salta il turno, ogni volta con un nuovo numero', () => {
+  const s1 = c('red', 'skip');
+  const s2 = c('red', 'skip');
+  const g = setup(three(), [[s1, s2, c('blue', '1')], [c('red', '1')], [c('red', '2')]], c('red', '3'));
+  assert.strictEqual(g.viewFor('a').skip, null);
+  g.play('a', s1.id);
+  const first = g.viewFor('a').skip;
+  assert.deepStrictEqual(first.ids, ['b']);
+  assert.match(first.text, /B salta il turno/);
+  g.turn = 0;
+  g.play('a', s2.id);
+  assert.ok(g.viewFor('a').skip.seq > first.seq);
+});
+
+test('salti annunciati: +2, inverti in due, salta tutti, +4 accettato', () => {
+  const d2 = c('red', 'draw2');
+  let g = setup(three(), [[d2, c('blue', '1')], [c('red', '1')], [c('red', '2')]], c('red', '3'));
+  g.play('a', d2.id);
+  assert.deepStrictEqual(g.viewFor('a').skip.ids, ['b']);
+
+  const rev = c('red', 'reverse');
+  g = setup(two(), [[rev, c('blue', '1')], [c('red', '1')]], c('red', '3'));
+  g.play('a', rev.id);
+  assert.deepStrictEqual(g.viewFor('a').skip.ids, ['b']);
+
+  const w4 = c('wild', 'wild4');
+  g = setup(three(), [[w4, c('blue', '1')], [c('red', '1')], [c('red', '2')]], c('red', '3'));
+  g.play('a', w4.id, 'green');
+  assert.strictEqual(g.viewFor('a').skip, null, 'non ha ancora deciso');
+  g.accept('b');
+  assert.deepStrictEqual(g.viewFor('a').skip.ids, ['b']);
+
+  const sa = c('red', 'skipall');
+  g = setup(three(), [[sa, c('blue', '1')], [c('red', '1')], [c('red', '2')]], c('red', '3'));
+  g.mode = 'nomercy';
+  g.play('a', sa.id);
+  assert.deepStrictEqual(g.viewFor('a').skip.ids, ['b', 'c']);
+});
+
+test('una mossa normale non annuncia salti', () => {
+  const r1 = c('red', '1');
+  const g = setup(three(), [[r1, c('blue', '1')], [c('red', '1')], [c('red', '2')]], c('red', '3'));
+  g.play('a', r1.id);
+  assert.strictEqual(g.viewFor('a').skip, null);
+});
+
+test('Casinò: dadi da 10 in su annunciano il salto del successivo', () => {
+  const d = c('red', 'dice');
+  const g = casinoSetup(three(), [[d, c('red', '1')], [c('red', '2')], [c('red', '3')]], c('red', '5'), [pick(4, 6), pick(5, 6)]);
+  g.play('a', d.id);
+  assert.deepStrictEqual(g.viewFor('a').skip.ids, ['b']);
+});

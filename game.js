@@ -155,6 +155,9 @@ class Game {
     this.pot = 0;
     this.event = null;
     this.eventSeq = 0;
+    // ultimo salto di turno da annunciare a tutti (chi lo perde e perché)
+    this.skip = null;
+    this.skipSeq = 0;
 
     for (let i = 0; i < 7; i++) {
       for (const p of this.players) p.hand.push(this.drawOne());
@@ -234,7 +237,7 @@ class Game {
         this.addLog(`Prima carta Jolly: ${who} sceglie il colore`);
         break;
       case 'skip':
-        this.addLog(`Prima carta Salta: ${who} salta il turno`);
+        this.skipTurn([this.current()], `Prima carta Salta: ${who} salta il turno`);
         this.advance(1);
         break;
       case 'reverse':
@@ -245,7 +248,7 @@ class Game {
       case 'draw1':
       case 'draw2':
         this.draw(this.current(), DRAW_VALUE[f.value]);
-        this.addLog(`Prima carta ${valueName(f.value)}: ${who} pesca e salta il turno`);
+        this.skipTurn([this.current()], `Prima carta ${valueName(f.value)}: ${who} pesca e salta il turno`);
         this.advance(1);
         break;
       default:
@@ -256,6 +259,12 @@ class Game {
   addLog(msg) {
     this.log.push(msg);
     if (this.log.length > 40) this.log.shift();
+  }
+
+  // Annuncia che questi giocatori perdono il turno (finisce anche nel registro)
+  skipTurn(players, msg) {
+    this.addLog(msg);
+    this.skip = { ids: players.map((p) => p.id), text: msg, seq: ++this.skipSeq };
   }
 
   current() {
@@ -419,12 +428,12 @@ class Game {
 
     switch (f.value) {
       case 'skip':
-        this.addLog(`${next().name} salta il turno`);
+        this.skipTurn([next()], `${next().name} salta il turno`);
         this.advance(2);
         break;
       case 'reverse':
         if (twoPlayers) {
-          this.addLog(`${next().name} salta il turno`);
+          this.skipTurn([next()], `${next().name} salta il turno`);
           this.advance(2);
         } else {
           this.direction *= -1;
@@ -433,7 +442,7 @@ class Game {
         }
         break;
       case 'skipall':
-        this.addLog(`Tutti saltano il turno: ${player.name} gioca ancora`);
+        this.skipTurn(this.players.filter((p) => p !== player), `Tutti saltano il turno: ${player.name} gioca ancora`);
         this.advance(0);
         break;
       case 'draw1':
@@ -441,7 +450,7 @@ class Game {
       case 'draw5': {
         const victim = next();
         const n = this.draw(victim, DRAW_VALUE[f.value]);
-        this.addLog(`${victim.name} pesca ${n} ${n === 1 ? 'carta' : 'carte'} e salta il turno`);
+        this.skipTurn([victim], `${victim.name} pesca ${n} ${n === 1 ? 'carta' : 'carte'} e salta il turno`);
         this.advance(2);
         break;
       }
@@ -557,6 +566,7 @@ class Game {
       this.draw(next, 2);
       text = `${sum}! ${next.name} pesca 2 carte e salta il turno`;
       steps = 2;
+      this.skip = { ids: [next.id], text, seq: ++this.skipSeq };
     } else if (sum <= 4) {
       this.draw(player, 2);
       text = `${sum}... ${player.name} pesca 2 carte`;
@@ -681,7 +691,7 @@ class Game {
       this.advance(p.after);
     } else {
       const n = this.drawUntilColor(player, color);
-      this.addLog(`${player.name} sceglie il ${colorName(color)}: pesca ${n} carte e salta il turno`);
+      this.skipTurn([player], `${player.name} sceglie il ${colorName(color)}: pesca ${n} carte e salta il turno`);
       this.advance(1);
       this.checkMercy();
     }
@@ -696,7 +706,7 @@ class Game {
     const victim = this.current();
     this.pending = null;
     const n = p.type === 'stack' ? this.draw(victim, p.amount) : this.penalty(victim, p, 0);
-    this.addLog(`${victim.name} pesca ${n} carte e salta il turno`);
+    this.skipTurn([victim], `${victim.name} pesca ${n} carte e salta il turno`);
     this.advance(1);
     this.checkMercy();
   }
@@ -715,7 +725,7 @@ class Game {
       // chi ha sfidato gioca normalmente il proprio turno
     } else {
       const n = this.penalty(victim, p, 2);
-      this.addLog(`${victim.name} sfida e perde: pesca ${n} carte e salta il turno`);
+      this.skipTurn([victim], `${victim.name} sfida e perde: pesca ${n} carte e salta il turno`);
       this.advance(1);
     }
   }
@@ -904,6 +914,7 @@ class Game {
       pile: this.discard.slice(-4).map((c) => ({ id: c.id, ...this.face(c) })),
       currentColor: this.currentColor,
       turnId: this.current().id,
+      nextId: this.players[this.nextIndex()].id,
       direction: this.direction,
       deckCount: this.deck.length,
       deckBack: this.isFlip && deckTop ? this.otherFace(deckTop) : null,
@@ -915,6 +926,7 @@ class Game {
       eliminated: this.eliminated,
       pot: this.casino ? this.pot : null,
       event: this.event,
+      skip: this.skip,
       winner: this.winner,
       log: this.log.slice(-14),
     };

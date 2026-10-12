@@ -529,6 +529,12 @@ function render() {
   const myPending = myTurn && pend ? pend.type : null;
   const turnName = playerName(g, g.turnId);
   $('turnInfo').textContent = g.winner ? 'Mano finita' : myTurn ? 'È il tuo turno!' : `Turno di ${turnName}`;
+  if (!g.winner && g.nextId && g.nextId !== g.turnId) {
+    const then = document.createElement('small');
+    then.className = 'then';
+    then.textContent = g.nextId === s.you ? ' · poi tocca a te' : ` · poi ${playerName(g, g.nextId)}`;
+    $('turnInfo').append(then);
+  }
   $('turnInfo').classList.toggle('mine', myTurn);
 
   renderOpponents(s, g);
@@ -667,6 +673,7 @@ function render() {
 
   renderRoundEnd(s, g, isHost);
   if (prevG) animateChanges(prevG, g, s, before);
+  if (prevG && g.skip && (!prevG.skip || prevG.skip.seq !== g.skip.seq)) announceSkip(g, s);
   // Casinò: slot machine o dadi appena giocati
   $('casinoTable').classList.toggle('hidden', g.mode !== 'gambling');
   $('center').classList.toggle('casino', g.mode === 'gambling');
@@ -884,6 +891,26 @@ function fly(el, from, to, { delay = 0, endTransform = '', startScale = 1, endOp
   };
 }
 
+// Annuncio grande di chi perde il turno, più un timbro su ciascuno di loro
+let skipTimer = null;
+function announceSkip(g, s) {
+  const mine = g.skip.ids.includes(s.you);
+  const banner = $('skipBanner');
+  banner.textContent = `⏭ ${mine ? 'Salti il turno! ' : ''}${g.skip.text}`;
+  banner.classList.toggle('mine', mine);
+  banner.classList.remove('hidden');
+  banner.style.animation = 'none';
+  void banner.offsetWidth; // riparte l'animazione anche con due salti di fila
+  banner.style.animation = '';
+  clearTimeout(skipTimer);
+  skipTimer = setTimeout(() => banner.classList.add('hidden'), 2600);
+  if (mine && navigator.vibrate) navigator.vibrate([60, 60, 60]);
+  for (const id of g.skip.ids) {
+    const el = id === s.you ? $('hand') : document.querySelector(`.opp[data-pid="${id}"]`);
+    if (el) burst('⏭ SALTA', el.getBoundingClientRect());
+  }
+}
+
 function burst(text, rect) {
   const b = document.createElement('div');
   b.className = 'uno-burst';
@@ -1007,6 +1034,12 @@ function renderOpponents(s, g) {
     const member = s.members.find((m) => m.id === p.id);
     const d = document.createElement('div');
     d.className = 'opp' + (p.id === g.turnId && !g.winner ? ' turn' : '') + (member && !member.connected ? ' offline' : '');
+    if (!g.winner && (p.id === g.turnId || p.id === g.nextId)) {
+      const tag = document.createElement('div');
+      tag.className = 'opp-tag' + (p.id === g.turnId ? ' now' : '');
+      tag.textContent = p.id === g.turnId ? 'di turno' : 'poi';
+      d.append(tag);
+    }
     d.dataset.pid = p.id;
     if (p.id === g.turnId && !g.winner && s.turnRemaining != null) d.append(timerRingEl());
     const name = document.createElement('div');
