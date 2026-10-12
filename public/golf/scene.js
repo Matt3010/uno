@@ -176,6 +176,7 @@ function surface(hole, x0, z0, x1, z1, n, mat, lift = 0) {
   geo.computeVertexNormals();
   const m = new THREE.Mesh(geo, mat);
   m.receiveShadow = true;
+  m.castShadow = true; // il percorso sospeso fa ombra sul terreno
   return m;
 }
 
@@ -211,6 +212,7 @@ function cliff(hole, corners, n = 6) {
   const m = new THREE.Mesh(geo, MAT.stone);
   m.material.side = THREE.DoubleSide;
   m.receiveShadow = true;
+  m.castShadow = true;
   return m;
 }
 
@@ -308,11 +310,12 @@ export function createWorld(canvas) {
       const [x0, z0, x1, z1] = tileRect(t);
       if (t.kind === 'bridge') {
         // passerella di legno sul vuoto, con i piloni
-        const a = local(t, 0, S / 2);
-        const b = local(t, S, S / 2);
-        const deck = boxBetween(a[0], a[1], b[0], b[1], t.h0 - 0.14, t.h0, t.width, MAT.wood);
-        deck.scale.x = (S - 0.02 + t.width) / (S + t.width);
-        group.add(deck);
+        // lunga esattamente quanto la piastrella e appena sotto il prato: niente sfarfallio ai bordi
+        const [cx, cz] = local(t, S / 2, S / 2);
+        const deck = new THREE.Mesh(new THREE.BoxGeometry(S - 0.01, 0.14, t.width), MAT.wood);
+        deck.position.set(cx, t.h0 - 0.075, cz);
+        deck.rotation.y = -Math.atan2(DIRS[t.dir][1], DIRS[t.dir][0]);
+        group.add(shadows(deck));
         for (const u of [0.3, S - 0.3]) {
           for (const side of [-1, 1]) {
             const [px, pz] = local(t, u, S / 2 + side * (t.width / 2 - 0.1));
@@ -359,10 +362,27 @@ export function createWorld(canvas) {
     }
 
     for (const w of h.walls) {
+      if (w.house) continue; // i muri del mulino li disegna il mulino stesso
       const [x1, z1, x2, z2] = w.seg;
-      const bottom = w.house ? w.y1 - 0.9 : w.y1 - 0.42;
-      group.add(boxBetween(x1, z1, x2, z2, bottom, w.y1, w.house ? 0.5 : 0.16, w.house ? MAT.house : MAT.wood));
-      if (!w.house) group.add(boxBetween(x1, z1, x2, z2, w.y1 - 0.03, w.y1 + 0.03, 0.24, MAT.woodTop));
+      if (w.ya != null && Math.abs(w.ya - w.yb) > 1e-6) {
+        // sponda lungo una rampa: un'asse inclinata come il prato
+        const len = Math.hypot(x2 - x1, z2 - z1);
+        const holder = new THREE.Group();
+        holder.position.set((x1 + x2) / 2, (w.ya + w.yb) / 2, (z1 + z2) / 2);
+        holder.rotation.y = -Math.atan2(z2 - z1, x2 - x1);
+        const tilt = Math.atan2(w.yb - w.ya, len);
+        const body = new THREE.Mesh(new THREE.BoxGeometry(Math.hypot(len, w.yb - w.ya) + 0.02, 0.42, 0.16), MAT.wood);
+        body.position.y = -0.21;
+        const cap = new THREE.Mesh(new THREE.BoxGeometry(Math.hypot(len, w.yb - w.ya) + 0.02, 0.06, 0.24), MAT.woodTop);
+        const tilted = new THREE.Group();
+        tilted.rotation.z = tilt;
+        tilted.add(body, cap);
+        holder.add(tilted);
+        group.add(shadows(holder));
+        continue;
+      }
+      group.add(boxBetween(x1, z1, x2, z2, w.y1 - 0.42, w.y1, 0.16, MAT.wood));
+      group.add(boxBetween(x1, z1, x2, z2, w.y1 - 0.03, w.y1 + 0.03, 0.24, MAT.woodTop));
     }
 
     for (const zn of h.zones) {
@@ -433,39 +453,47 @@ export function createWorld(canvas) {
     }
 
     for (const m of h.windmills) {
+      // mulino da minigolf: pilastri ai lati della porta, torre col tetto a piramide, pale sul davanti.
+      // Il gruppo è orientato con +x nel verso di marcia e z di traverso.
       const y = m.y ?? 0;
       const g = new THREE.Group();
-      const across = m.axis === 0 ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(1, 0, 0);
-      // architrave sopra la porta, tetto a punta e pale sul davanti
-      const lintel = new THREE.Mesh(new THREE.BoxGeometry(m.axis === 0 ? 0.5 : m.width + 0.2, 0.5, m.axis === 0 ? m.width + 0.2 : 0.5), MAT.house);
-      lintel.position.set(0, 1.15, 0);
-      const body = new THREE.Mesh(new THREE.BoxGeometry(m.axis === 0 ? 1.4 : S, 0.9, m.axis === 0 ? S : 1.4), MAT.house);
-      body.position.y = 1.85;
-      const roof = new THREE.Mesh(new THREE.ConeGeometry(S * 0.62, 1.5, 4), MAT.roof);
-      roof.position.y = 3.05;
+      const side = (S - m.width) / 2;
+      for (const sign of [-1, 1]) {
+        const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.1, side), MAT.house);
+        pillar.position.set(0, 0.55, sign * (m.width / 2 + side / 2));
+        g.add(pillar);
+      }
+      const lintel = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.2, m.width), MAT.house);
+      lintel.position.set(0, 1.0, 0);
+      const tower = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.5, 2.6), MAT.house);
+      tower.position.set(0.3, 1.85, 0);
+      const roof = new THREE.Mesh(new THREE.ConeGeometry(2, 1.4, 4), MAT.roof);
+      roof.position.set(0.3, 3.3, 0);
       roof.rotation.y = Math.PI / 4;
-      g.add(lintel, body, roof);
+      roof.scale.set(0.85, 1, 1.35);
+      const door = new THREE.Mesh(new THREE.PlaneGeometry(m.width, 0.9), new THREE.MeshBasicMaterial({ color: '#2b1d12', side: THREE.DoubleSide }));
+      door.rotation.y = Math.PI / 2;
+      door.position.set(0.24, 0.45, 0);
+      g.add(lintel, tower, roof);
       const hub = new THREE.Group();
       for (let i = 0; i < 4; i++) {
-        const blade = new THREE.Mesh(new THREE.BoxGeometry(0.42, 1.9, 0.04), MAT.blade);
-        blade.position.y = -1.05;
         const arm = new THREE.Group();
-        arm.add(blade);
-        arm.rotation.z = (i * Math.PI) / 2;
+        const spar = new THREE.Mesh(new THREE.BoxGeometry(0.06, 1.75, 0.08), MAT.trunk);
+        spar.position.y = -0.9;
+        const sail = new THREE.Mesh(new THREE.BoxGeometry(0.04, 1.35, 0.5), MAT.blade);
+        sail.position.set(0, -1.05, 0.22);
+        arm.add(spar, sail);
+        arm.rotation.x = (i * Math.PI) / 2;
         hub.add(arm);
       }
-      const axle = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.3, 10), MAT.metal);
-      axle.rotation.x = Math.PI / 2;
-      hub.add(axle);
-      // le pale stanno sulla facciata da cui si arriva
-      const back = DIRS[m.dir];
-      const front = new THREE.Group();
-      front.add(hub);
-      front.position.set(-back[0] * 0.75, 1.85, -back[1] * 0.75);
-      front.rotation.y = -Math.atan2(back[1], back[0]) + Math.PI / 2;
-      g.add(front);
+      const cap = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 8), MAT.metal);
+      hub.add(cap);
+      // le pale girano davanti alla facciata da cui si arriva, alte quanto basta a coprire la porta
+      hub.position.set(-0.62, 1.95, 0);
+      g.add(hub);
+      const [dx, dz] = DIRS[m.dir];
       g.position.set(m.x, y, m.z);
-      void across;
+      g.rotation.y = -Math.atan2(dz, dx);
       group.add(shadows(g));
       moving.mills.push({ hub, m });
     }
@@ -542,7 +570,7 @@ export function createWorld(canvas) {
 
     const mx = (minX + maxX) / 2;
     const mz = (minZ + maxZ) / 2;
-    const span = Math.max(maxX - minX, maxZ - minZ) / 2 + 4;
+    const span = Math.max(maxX - minX, maxZ - minZ) / 2 + 8;
     sun.position.set(mx + 18, 30, mz + 10);
     sun.target.position.set(mx, 0, mz);
     Object.assign(sun.shadow.camera, { left: -span, right: span, top: span, bottom: -span, near: 1, far: 90 });
@@ -564,7 +592,7 @@ export function createWorld(canvas) {
       // una pala copre la porta proprio a metà del tempo in cui è chiusa
       const k = ((((t + (m.phase || 0)) % m.period) + m.period) % m.period) / m.period;
       const closedMid = m.open + (1 - m.open) / 2;
-      hub.rotation.z = (k - closedMid) * (Math.PI / 2);
+      hub.rotation.x = (k - closedMid) * (Math.PI / 2);
     }
     for (const p of moving.portals) {
       if (p.ring) p.ring.rotation.z = t * 2;

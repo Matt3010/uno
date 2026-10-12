@@ -8,6 +8,7 @@ const MAX_PLAYERS = 8;
 const DISCONNECT_GRACE_MS = 60 * 1000;
 const HOLE_SECONDS = Number(process.env.GOLF_HOLE_SECONDS) || 150;
 const BETWEEN_MS = Number(process.env.GOLF_BETWEEN_MS) || 6000;
+const HOLE_CHOICES = [9, 18];
 const COLORS = ['#ffffff', '#ff5a4e', '#4ea3ff', '#ffd23f', '#5ee07a', '#c77dff', '#ff9f43', '#3ee6d6'];
 
 module.exports = function setupGolf(nsp) {
@@ -42,6 +43,8 @@ module.exports = function setupGolf(nsp) {
         you: member.id,
         members: [...room.members.values()].map((x) => ({ id: x.id, name: x.name, connected: x.connected, color: x.color })),
         phase: room.phase,
+        holes: room.holes,
+        holeChoices: HOLE_CHOICES,
         seed: m ? m.seed : null,
         holeIndex: m ? m.holeIndex : 0,
         holeCount: m ? m.course.length : 0,
@@ -142,7 +145,7 @@ module.exports = function setupGolf(nsp) {
 
     socket.on('create', ({ name } = {}) => {
       if (room) return;
-      const r = { code: newRoomCode(), hostId: null, members: new Map(), phase: 'lobby', match: null, pos: {} };
+      const r = { code: newRoomCode(), hostId: null, members: new Map(), phase: 'lobby', match: null, pos: {}, holes: HOLE_CHOICES[0] };
       const m = addMember(r, name);
       r.hostId = m.id;
       rooms.set(r.code, r);
@@ -163,8 +166,16 @@ module.exports = function setupGolf(nsp) {
       if (!room || room.hostId !== playerId) return;
       if (room.phase === 'playing' || room.phase === 'between') return;
       const players = [...room.members.values()];
-      room.match = new GolfMatch(players, { seed: crypto.randomInt(1, 2 ** 31 - 1) });
+      room.match = new GolfMatch(players, { seed: crypto.randomInt(1, 2 ** 31 - 1), holes: room.holes });
       startHole(room);
+    });
+
+    // quante buche: si sceglie prima di iniziare
+    socket.on('holes', (n) => {
+      if (!room || room.hostId !== playerId || !HOLE_CHOICES.includes(n)) return;
+      if (room.phase === 'playing' || room.phase === 'between') return;
+      room.holes = n;
+      broadcast(room);
     });
 
     // azione di gioco: gli errori (colpo non valido...) tornano solo a chi l'ha fatta

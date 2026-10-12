@@ -385,7 +385,7 @@ socket.on('state', (s) => {
   if (s.phase === 'lobby') return renderLobby(s);
 
   if (s.seed !== builtSeed) {
-    course = C.generateCourse(s.seed);
+    course = C.generateCourse(s.seed, s.holeCount);
     builtSeed = s.seed;
     builtHole = -1;
   }
@@ -450,6 +450,16 @@ function renderLobby(s) {
     ul.append(li);
   }
   const host = s.hostId === s.you;
+  const choices = $('holeChoices');
+  choices.innerHTML = '';
+  for (const n of s.holeChoices) {
+    const b = document.createElement('button');
+    b.className = 'btn' + (n === s.holes ? ' on' : '');
+    b.textContent = n;
+    b.disabled = !host; // sceglie chi ha creato la stanza
+    b.onclick = () => socket.emit('holes', n);
+    choices.append(b);
+  }
   $('startBtn').classList.toggle('hidden', !host);
   $('waitHost').classList.toggle('hidden', host);
 }

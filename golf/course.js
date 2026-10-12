@@ -6,7 +6,7 @@
   const isNode = typeof module === 'object' && module.exports;
   const P = isNode ? require('./physics') : root.GolfPhysics;
 
-  const HOLES = 6;
+  const HOLES = 9;
   const TILE = 5;
   const DIRS = [[1, 0], [0, 1], [-1, 0], [0, -1]]; // +x, +z, -x, -z
   const WALL_H = 0.3;
@@ -53,6 +53,31 @@
       if (path.length === length) return path;
     }
     throw new Error('percorso impossibile');
+  }
+
+  // Serpentina: righe avanti e indietro una accanto all'altra (un tornante a ogni cambio di riga)
+  function serpentine(rng, length) {
+    const row = rng() < 0.5 ? 3 : 4;
+    const side = rng() < 0.5 ? 1 : 3;
+    let dir = 0;
+    let x = 0;
+    let z = 0;
+    let steps = 0;
+    const path = [[0, 0]];
+    while (path.length < length) {
+      if (steps < row - 1) {
+        x += DIRS[dir][0];
+        z += DIRS[dir][1];
+        steps++;
+      } else {
+        x += DIRS[side][0];
+        z += DIRS[side][1];
+        dir = (dir + 2) % 4;
+        steps = 0;
+      }
+      path.push([x, z]);
+    }
+    return path;
   }
 
   const dirBetween = (a, b) => DIRS.findIndex(([dx, dz]) => a[0] + dx === b[0] && a[1] + dz === b[1]);
@@ -123,19 +148,21 @@
       const a = a0 + ((a1 - a0) * p) / parts;
       const b = a0 + ((a1 - a0) * (p + 1)) / parts;
       const seg = edgeSegment(t, d, a, b);
-      const top = Math.max(floorAt(t, seg[0], seg[1]), floorAt(t, seg[2], seg[3])) + WALL_H;
-      hole.walls.push({ seg, y0: -10, y1: top });
+      const ya = floorAt(t, seg[0], seg[1]) + WALL_H;
+      const yb = floorAt(t, seg[2], seg[3]) + WALL_H;
+      // ya e yb servono solo al disegno (sponda inclinata lungo le rampe)
+      hole.walls.push({ seg, y0: -10, y1: Math.max(ya, yb), ya, yb });
     }
   }
 
   // Ostacolo su una piastrella dritta o in curva; restituisce un'etichetta per il par
-  function decorate(rng, hole, t, straight, index) {
+  function decorate(rng, hole, t, straight, index, forceMill) {
     const S = TILE;
     const h = t.h0;
     const across = 1 - travelAxis(t);
-    const choicesStraight = ['ramp', 'ramp', 'bridge', 'tunnel', 'windmill', 'slider', 'spinner', 'boost', 'water', 'stub', 'bumper', 'sand', 'plain'];
-    const choicesTurn = ['bumper', 'sand', 'plain', 'plain'];
-    const kind = pick(rng, straight ? choicesStraight : choicesTurn);
+    const choicesStraight = ['ramp', 'ramp', 'bridge', 'tunnel', 'windmill', 'windmill', 'slider', 'spinner', 'boost', 'water', 'stub', 'bumper', 'sand'];
+    const choicesTurn = ['bumper', 'bumper', 'sand', 'spinner'];
+    const kind = forceMill && straight ? 'windmill' : pick(rng, straight ? choicesStraight : choicesTurn);
     switch (kind) {
       case 'bumper': {
         const n = rng() < 0.5 ? 1 : 2;
@@ -163,7 +190,7 @@
         return 'ramp'; // le rampe le decide chi chiama (cambiano l'altezza)
       case 'bridge':
         t.kind = 'bridge';
-        t.width = range(rng, 1.3, 1.8);
+        t.width = range(rng, 1.1, 1.5);
         return 'bridge';
       case 'tunnel':
         t.roof = true;
@@ -204,10 +231,12 @@
     }
   }
 
-  function generateHole(seed, index) {
+  function generateHole(seed, index, { forceMill = false } = {}) {
     const rng = makeRng(seed * 7919 + index * 104729 + 1);
-    const length = 4 + Math.floor(index * 0.9) + (rng() < 0.5 ? 1 : 0);
-    const path = walk(rng, length);
+    const serp = index >= 1 && rng() < 0.3 + 0.04 * index;
+    let length = Math.min(12, 5 + Math.floor(index * 0.7)) + (rng() < 0.5 ? 1 : 0);
+    if (serp) length = Math.max(length, 8);
+    const path = serp ? serpentine(rng, length) : walk(rng, length);
     const din = path.map((p, i) => (i ? dirBetween(path[i - 1], p) : dirBetween(p, path[1])));
     const dout = path.map((p, i) => (i < length - 1 ? dirBetween(p, path[i + 1]) : din[i]));
     const straight = (i) => din[i] === dout[i];
@@ -232,14 +261,15 @@
     let h = 0;
     let jumps = 0;
     let hard = 0;
-    const chance = 0.55 + 0.07 * index;
+    const chance = Math.min(0.95, 0.85 + 0.02 * index);
+    let wantMill = forceMill;
     const plain = new Set();
     for (let i = 1; i < length - 1; i++) {
       const t = T[i];
       t.h0 = h;
       t.h1 = h;
       // salto: rampa, burrone e atterraggio, tutti dritti
-      if (i + 2 <= length - 1 && straight(i) && straight(i + 1) && din[i + 1] === din[i] && rng() < 0.2 + 0.05 * index) {
+      if (!serp && i + 2 <= length - 1 && straight(i) && straight(i + 1) && din[i + 1] === din[i] && rng() < 0.2 + 0.05 * index) {
         t.kind = 'ramp';
         t.h1 = h + 0.8;
         const g = T[i + 1];
@@ -252,11 +282,24 @@
         i++;
         continue;
       }
+      // sulle serpentine le righe salgono: tornanti di montagna
+      if (serp && straight(i) && rng() < 0.65) {
+        t.kind = 'ramp';
+        t.h1 = h + range(rng, 0.6, 0.9);
+        h = t.h1;
+        continue;
+      }
       if (rng() >= chance) {
         plain.add(i);
         continue;
       }
-      const what = decorate(rng, hole, t, straight(i), index);
+      const what = decorate(rng, hole, t, straight(i), index, wantMill);
+      if (what === 'windmill') wantMill = false;
+      // a volte un secondo ostacolo sulla stessa piastrella
+      if (['sand', 'boost', 'water'].includes(what) && rng() < 0.5) {
+        const [x, z] = local(t, range(rng, 1.4, TILE - 1.4), TILE / 2 + range(rng, -0.8, 0.8));
+        hole.bumpers.push({ x, z, r: range(rng, 0.3, 0.4), y: t.h0 });
+      }
       if (what === 'ramp') {
         const up = h < 0.6 || rng() < 0.5;
         t.kind = 'ramp';
@@ -302,7 +345,15 @@
   }
 
   function generateCourse(seed, holes = HOLES) {
-    return Array.from({ length: holes }, (_, i) => generateHole(seed, i));
+    const course = Array.from({ length: holes }, (_, i) => generateHole(seed, i));
+    // almeno un mulino a partita: se non è uscito, lo si mette in una buca a metà percorso
+    const mid = Math.floor(holes / 2);
+    for (let k = 0; k < holes && !course.some((h) => h.windmills.length); k++) {
+      const i = (mid + k) % holes;
+      const h = generateHole(seed, i, { forceMill: true });
+      if (h.windmills.length) course[i] = h;
+    }
+    return course;
   }
 
   const api = { HOLES, TILE, generateCourse, generateHole, makeRng, local };

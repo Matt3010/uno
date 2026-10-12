@@ -10,6 +10,7 @@ test('stesso seme, stesse buche; semi diversi, buche diverse', () => {
   assert.deepStrictEqual(JSON.stringify(generateCourse(42)), JSON.stringify(generateCourse(42)));
   assert.notDeepStrictEqual(JSON.stringify(generateCourse(42)), JSON.stringify(generateCourse(43)));
   assert.strictEqual(generateCourse(42).length, HOLES);
+  assert.strictEqual(HOLES, 9);
 });
 
 test('ogni buca ha senso: partenza e buca sul prato, lontane e senza ostacoli addosso', () => {
@@ -40,16 +41,34 @@ test('le buche diventano via via più lunghe', () => {
 });
 
 // due svolte di fila dalla stessa parte: il percorso torna indietro a U
-function hasHairpin(hole) {
+function hairpins(hole) {
   const t = hole.tiles;
+  let n = 0;
   for (let i = 0; i + 3 < t.length; i++) {
     const d = (a, b) => [t[b].gx - t[a].gx, t[b].gz - t[a].gz];
     const [ax, az] = d(i, i + 1);
     const [bx, bz] = d(i + 2, i + 3);
-    if (ax === -bx && az === -bz) return true;
+    if (ax === -bx && az === -bz) n++;
   }
-  return false;
+  return n;
 }
+const hasHairpin = (hole) => hairpins(hole) > 0;
+
+test('i tornanti sono frequenti e ci sono buche a serpentina che salgono', () => {
+  let withHairpin = 0;
+  let serpentine = 0;
+  let total = 0;
+  for (let seed = 1; seed <= 40; seed++) {
+    for (const hole of generateCourse(seed)) {
+      total++;
+      if (hasHairpin(hole)) withHairpin++;
+      const climbs = hole.tiles.some((t) => t.kind === 'ramp' && t.h1 > t.h0);
+      if (hairpins(hole) >= 2 && climbs) serpentine++;
+    }
+  }
+  assert.ok(withHairpin / total > 0.4, `buche con tornante: ${withHairpin}/${total}`);
+  assert.ok(serpentine / total > 0.15, `serpentine in salita: ${serpentine}/${total}`);
+});
 
 test('nelle partite compaiono tutti i pezzi e gli ostacoli', () => {
   const seen = new Set();
@@ -68,4 +87,37 @@ test('nelle partite compaiono tutti i pezzi e gli ostacoli', () => {
   for (const k of ['salita', 'discesa', 'gap', 'bridge', 'tunnel', 'tornante', 'bumpers', 'spinners', 'sliders', 'windmills', 'portals', 'sand', 'water', 'boost']) {
     assert.ok(seen.has(k), `manca: ${k}`);
   }
+});
+
+test('9 buche di base, 18 se si vuole', () => {
+  assert.strictEqual(generateCourse(5).length, 9);
+  assert.strictEqual(generateCourse(5, 18).length, 18);
+});
+
+test('in ogni partita c’è almeno un mulino', () => {
+  for (let seed = 1; seed <= 80; seed++) {
+    const n = generateCourse(seed).reduce((a, h) => a + h.windmills.length, 0);
+    assert.ok(n >= 1, `seme ${seed}: nessun mulino`);
+  }
+});
+
+test('percorsi impegnativi: quasi ogni piastrella di mezzo ha qualcosa', () => {
+  let middle = 0;
+  let busy = 0;
+  for (let seed = 1; seed <= 30; seed++) {
+    for (const hole of generateCourse(seed)) {
+      const cell = (x, z) => `${Math.floor(x / 5)},${Math.floor(z / 5)}`;
+      const filled = new Set([
+        ...hole.bumpers.map((o) => cell(o.x, o.z)),
+        ...[...hole.spinners, ...hole.sliders, ...hole.windmills].map((o) => cell(o.x, o.z)),
+        ...hole.zones.map((zn) => cell(zn.poly.reduce((a, p) => a + p[0], 0) / zn.poly.length, zn.poly.reduce((a, p) => a + p[1], 0) / zn.poly.length)),
+      ]);
+      const things = (x, z) => filled.has(`${x},${z}`);
+      hole.tiles.slice(1, -1).forEach((t) => {
+        middle++;
+        if (t.kind !== 'flat' || t.roof || things(t.gx, t.gz)) busy++;
+      });
+    }
+  }
+  assert.ok(busy / middle > 0.75, `piastrelle con qualcosa: ${busy}/${middle}`);
 });
