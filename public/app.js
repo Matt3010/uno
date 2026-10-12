@@ -552,10 +552,16 @@ function animateChanges(prev, g, s, before) {
     playFlight = null;
   }
   if (flipped) {
-    // Flip: la pila e la mano si girano
-    for (const el of [$('discard'), $('hand')]) {
-      el.animate([{ transform: 'rotateY(90deg)' }, { transform: 'rotateY(0)' }], { duration: 450, easing: 'ease-out' });
-    }
+    // Flip: ogni carta si gira in 3D, una dopo l'altra
+    const cards = [...document.querySelectorAll('#discard .card, #hand .card')];
+    cards.forEach((el, i) => {
+      el.animate([{ rotate: 'y -90deg' }, { rotate: 'y 0deg' }], {
+        duration: 380,
+        delay: i * 45,
+        easing: 'cubic-bezier(.2,.8,.3,1)',
+        fill: 'backwards',
+      });
+    });
   } else if (top && prevTop && top.id !== prevTop.id && topEl) {
     // Carta giocata: vola dalla mano (o dall'avversario) alla pila
     const actor = prev.turnId;
