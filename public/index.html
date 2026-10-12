@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>UNO Online</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Schermata iniziale -->
+  <section id="home" class="screen">
+    <h1 class="logo">UNO</h1>
+    <p class="subtitle">Gioca online con i tuoi amici</p>
+    <div class="panel">
+      <label>Il tuo nome
+        <input id="name" maxlength="16" placeholder="Es. Mario" autocomplete="nickname" />
+      </label>
+      <button id="createBtn" class="btn primary">Crea una stanza</button>
+      <div class="divider">oppure</div>
+      <label>Codice stanza
+        <input id="codeInput" maxlength="4" placeholder="ABCD" autocapitalize="characters" />
+      </label>
+      <button id="joinBtn" class="btn">Entra nella stanza</button>
+    </div>
+  </section>
+
+  <!-- Sala d'attesa -->
+  <section id="lobby" class="screen hidden">
+    <h2>Stanza <span id="lobbyCode" class="code"></span></h2>
+    <p>Condividi questo link con i tuoi amici:</p>
+    <div class="share">
+      <input id="shareLink" readonly />
+      <button id="copyBtn" class="btn small">Copia</button>
+    </div>
+    <ul id="memberList" class="members"></ul>
+    <button id="startBtn" class="btn primary">Inizia partita</button>
+    <p id="waitHost" class="muted">In attesa che l'host avvii la partita…</p>
+    <button id="leaveBtn" class="btn small ghost">Esci</button>
+  </section>
+
+  <!-- Tavolo -->
+  <section id="table" class="screen hidden">
+    <header class="topbar">
+      <span>Stanza <b id="tableCode"></b></span>
+      <span id="turnInfo"></span>
+      <button id="leaveBtn2" class="btn small ghost">Esci</button>
+    </header>
+
+    <div id="opponents" class="opponents"></div>
+
+    <div class="center">
+      <div class="pile">
+        <button id="deck" class="card back" title="Pesca"><span>UNO</span></button>
+        <div class="deck-count" id="deckCount"></div>
+      </div>
+      <div class="pile">
+        <div id="discard"></div>
+        <div id="colorDot" class="color-dot"></div>
+      </div>
+      <div class="direction" id="direction">⟳</div>
+    </div>
+
+    <div class="actions">
+      <button id="passBtn" class="btn small hidden">Passa</button>
+      <button id="unoBtn" class="btn uno">UNO!</button>
+    </div>
+
+    <div id="hand" class="hand"></div>
+
+    <div class="side">
+      <ul id="log" class="log"></ul>
+      <ul id="chatLog" class="log chat"></ul>
+      <form id="chatForm" class="chat-form">
+        <input id="chatInput" maxlength="200" placeholder="Scrivi in chat…" />
+      </form>
+    </div>
+  </section>
+
+  <!-- Scelta colore -->
+  <div id="colorPicker" class="modal hidden">
+    <div class="modal-box">
+      <h3>Scegli un colore</h3>
+      <div class="colors">
+        <button data-color="red" class="c red"></button>
+        <button data-color="yellow" class="c yellow"></button>
+        <button data-color="green" class="c green"></button>
+        <button data-color="blue" class="c blue"></button>
+      </div>
+      <button id="cancelColor" class="btn small ghost">Annulla</button>
+    </div>
+  </div>
+
+  <!-- Fine mano -->
+  <div id="roundEnd" class="modal hidden">
+    <div class="modal-box">
+      <h3 id="winnerText"></h3>
+      <table id="scoreTable" class="scores"></table>
+      <button id="nextRoundBtn" class="btn primary">Nuova mano</button>
+      <p id="waitNext" class="muted">In attesa dell'host…</p>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

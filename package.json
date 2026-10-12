@@ -1,0 +1,30 @@
+{
+  "name": "uno-online",
+  "version": "1.0.0",
+  "description": "UNO multiplayer online da giocare con gli amici",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Matt3010/uno.git"
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Matt3010/uno/issues"
+  },
+  "homepage": "https://github.com/Matt3010/uno#readme",
+  "dependencies": {
+    "express": "^4.22.3",
+    "socket.io": "^4.8.4"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.4"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "private": true
+}
