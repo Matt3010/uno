@@ -149,13 +149,157 @@ $('chatForm').onsubmit = (e) => {
 };
 
 function playCard(card) {
-  if (!card.playable) return;
+  if (!card.playable) return toast(cannotPlayReason(card));
   if (card.color === 'wild') {
     pendingWildCard = card.id;
     openColorPicker('play', 'Scegli un colore', state.game.colors);
   } else {
     socket.emit('play', { cardId: card.id });
   }
+}
+
+// Perché una carta non si può giocare (in parole semplici)
+function cannotPlayReason(card) {
+  const g = state.game;
+  if (g.winner) return 'La mano è finita';
+  if (g.turnId !== state.you) return `Non è il tuo turno: tocca a ${playerName(g, g.turnId)}`;
+  const p = g.pending;
+  if (p && p.type === 'stack') return `Puoi rispondere solo con una carta pesca da +${p.min} o più, altrimenti premi "Pesca ${p.amount} carte"`;
+  if (p) return 'Prima completa la scelta in corso';
+  if (g.hasDrawn) return 'Dopo aver pescato puoi giocare solo la carta appena pescata';
+  const top = g.top;
+  const color = g.currentColor ? COLOR_NAMES[g.currentColor] : '';
+  return `Serve una carta ${color ? `${color} ` : ''}oppure con lo stesso simbolo di quella sulla pila (${describeCard(top)}). I Jolly vanno sempre bene.`;
+}
+
+// --- Regole spiegate nel gioco ---
+const RULE_CARDS = {
+  classic: [
+    [{ color: 'red', value: 'skip' }, 'Salta: il giocatore dopo di te salta il turno.'],
+    [{ color: 'blue', value: 'reverse' }, 'Inverti: cambia il senso di gioco (in 2 vale come Salta).'],
+    [{ color: 'green', value: 'draw2' }, '+2: il giocatore dopo pesca 2 carte e salta il turno.'],
+    [{ color: 'wild', value: 'wild' }, 'Jolly: si gioca su qualsiasi carta e scegli tu il colore.'],
+    [{ color: 'wild', value: 'wild4' }, 'Jolly +4: scegli il colore e il successivo pesca 4. Vale solo se non hai carte del colore in tavola: chi lo riceve può sfidarti!'],
+  ],
+  flip: [
+    [{ color: 'yellow', value: 'draw1' }, '+1 (lato chiaro): il successivo pesca 1 carta e salta il turno.'],
+    [{ color: 'red', value: 'flip' }, 'Flip: si gira tutto! Mazzo, pila e mani passano all\'altro lato.'],
+    [{ color: 'wild', value: 'wild2' }, 'Jolly +2 (lato chiaro): scegli il colore e il successivo pesca 2. Si può sfidare come il +4.'],
+    [{ color: 'pink', value: 'draw5' }, '+5 (lato scuro): il successivo pesca 5 carte e salta il turno.'],
+    [{ color: 'teal', value: 'skipall' }, 'Salta tutti (lato scuro): tutti saltano il turno e giochi di nuovo tu.'],
+    [{ color: 'wild', value: 'wildcolor' }, 'Jolly pesca colore (lato scuro): scegli un colore, il successivo pesca finché non lo trova.'],
+  ],
+  nomercy: [
+    [{ color: 'red', value: 'draw2' }, '+2 e +4 colorati: si accumulano! Chi li riceve può rispondere con una carta pesca uguale o più forte, altrimenti pesca tutto.'],
+    [{ color: 'wild', value: 'wild6' }, 'Jolly +6 e +10: come sopra, ma ancora più cattivi.'],
+    [{ color: 'wild', value: 'wildrev4' }, 'Jolly inverti +4: cambia senso di gioco e il nuovo successivo pesca 4.'],
+    [{ color: 'blue', value: 'skipall' }, 'Salta tutti: giochi di nuovo tu.'],
+    [{ color: 'green', value: 'discardall' }, 'Scarta tutto: butti insieme a lei tutte le carte di quel colore.'],
+    [{ color: 'wild', value: 'roulette' }, 'Roulette dei colori: il successivo sceglie un colore e pesca finché non esce.'],
+    [{ color: 'yellow', value: '7' }, '7: scambi la tua mano con un giocatore a scelta.'],
+    [{ color: 'red', value: '0' }, '0: tutti passano la mano al giocatore successivo.'],
+  ],
+  gambling: [
+    [{ color: 'wild', value: 'slot' }, 'Slot machine (Jolly): scegli il colore e tiri la leva. 7️⃣7️⃣7️⃣ = +100 fiches e gli altri pescano 3 · tris = +30 e gli altri pescano 2 · coppia = +10 e il successivo pesca 1 · niente = paghi 10 nel piatto e peschi 1.'],
+    [{ color: 'red', value: 'dice' }, 'Dadi: doppio = vinci 10× il numero e rigiochi · 7 = gli altri pescano 1 · 10 o più = il successivo pesca 2 e salta · 4 o meno = peschi tu 2.'],
+    [{ color: 'green', value: 'raise' }, 'Rilancio: tutti mettono altre 10 fiches nel piatto.'],
+    [{ color: 'wild', value: 'wild4' }, 'Valgono anche tutte le carte del Classico (Salta, Inverti, +2, Jolly, Jolly +4).'],
+  ],
+};
+
+const RULE_TEXT = {
+  classic: [
+    'Vince la partita chi arriva per primo a 500 punti.',
+    'Chi finisce le carte vince la mano e prende i punti delle carte rimaste agli altri.',
+  ],
+  flip: [
+    'Ogni carta ha due facce: si inizia dal lato chiaro, la carta Flip porta tutti sul lato scuro (e viceversa).',
+    'Vedi il retro delle carte degli avversari: sono le carte che avranno dopo il prossimo Flip!',
+    'Vince la partita chi arriva per primo a 500 punti.',
+  ],
+  nomercy: [
+    'Se non puoi giocare, peschi finché non trovi una carta giocabile (e devi giocarla).',
+    'Con 25 carte in mano sei eliminato! Vince chi finisce le carte o resta l\'ultimo.',
+    'Vince la partita chi arriva per primo a 1000 punti.',
+  ],
+  gambling: [
+    'Le fiches sono finte, solo per gioco. Si parte con 100 fiches e a ogni mano tutti ne mettono 10 nel piatto.',
+    'Chi finisce le carte prende il piatto più 2 fiches per ogni carta rimasta agli avversari.',
+    'Se ti beccano senza UNO, oltre a pescare 2 carte paghi 10 fiches a chi ti ha beccato.',
+    'Vince chi arriva a 500 fiches o resta l\'ultimo con le fiches.',
+  ],
+};
+
+const BASIC_RULES = [
+  'Al tuo turno gioca una carta dello <b>stesso colore</b> o con lo <b>stesso numero/simbolo</b> di quella in cima alla pila. Le carte che puoi giocare sono <b>evidenziate</b>.',
+  'Se non hai carte giocabili (o non vuoi giocarle) <b>tocca il mazzo</b> per pescare.',
+  'Quando stai per restare con una carta premi <b>UNO!</b>. Se te ne dimentichi, gli altri possono beccarti e peschi 2 carte.',
+  'Se un altro dimentica di dire UNO compare il pulsante <b>"Non ha detto UNO!"</b>: premilo prima che giochi il successivo.',
+];
+
+function showRules(mode) {
+  $('rulesTitle').textContent = `Come si gioca: ${state.modes[mode]}`;
+  const body = $('rulesBody');
+  body.innerHTML = '';
+  const section = (title) => {
+    const h = document.createElement('h4');
+    h.textContent = title;
+    body.append(h);
+  };
+  section('Le basi');
+  const ul = document.createElement('ul');
+  ul.innerHTML = BASIC_RULES.map((r) => `<li>${r}</li>`).join('');
+  body.append(ul);
+  section('Carte speciali');
+  for (const [card, text] of RULE_CARDS[mode]) {
+    const row = document.createElement('div');
+    row.className = 'rule-card';
+    const t = document.createElement('p');
+    t.textContent = text;
+    row.append(cardEl(card), t);
+    body.append(row);
+  }
+  section('Regole di questa modalità');
+  const ul2 = document.createElement('ul');
+  for (const r of RULE_TEXT[mode]) {
+    const li = document.createElement('li');
+    li.textContent = r;
+    ul2.append(li);
+  }
+  body.append(ul2);
+  $('rulesBox').classList.remove('hidden');
+  body.scrollTop = 0;
+  store(`uno-rules-${mode}`, '1');
+}
+$('rulesBtn').onclick = () => showRules(state.mode);
+$('rulesBtn2').onclick = () => showRules(state.game ? state.game.mode : state.mode);
+$('closeRules').onclick = () => $('rulesBox').classList.add('hidden');
+
+// Suggerimento su cosa fare adesso
+function hintText(g, s, myTurn) {
+  const me = g.players.find((p) => p.id === s.you);
+  if (!me || g.winner) return '';
+  if (g.unoVulnerable === s.you) return '⚠️ Ti resta una carta: premi subito UNO! prima che ti becchino';
+  if (g.unoVulnerable && g.unoVulnerable !== s.you) {
+    return `👀 ${playerName(g, g.unoVulnerable)} non ha detto UNO! Premi "Non ha detto UNO!" per fargli pescare 2 carte`;
+  }
+  if (!myTurn) return `Aspetta il tuo turno: ora tocca a ${playerName(g, g.turnId)}`;
+  const p = g.pending;
+  if (p && p.type === 'stack') return `Rispondi con una carta pesca evidenziata oppure premi "Pesca ${p.amount} carte"`;
+  if (p) return '';
+  if (g.hasDrawn) {
+    return g.mode === 'nomercy'
+      ? 'Hai trovato una carta giocabile: toccala per giocarla'
+      : 'Puoi giocare la carta che hai pescato (evidenziata) oppure premere "Passa"';
+  }
+  const canPlay = g.hand.some((c) => c.playable);
+  if (!canPlay) {
+    return g.mode === 'nomercy'
+      ? 'Nessuna carta giocabile: tocca il mazzo, peschi finché ne trovi una'
+      : 'Nessuna carta giocabile: tocca il mazzo per pescare';
+  }
+  if (me.cardCount === 2 && !me.saidUno) return 'Tocca una carta evidenziata per giocarla. Ti resterà una carta: premi UNO!';
+  return 'Tocca una carta evidenziata per giocarla, oppure il mazzo per pescare';
 }
 
 // --- Eventi dal server ---
@@ -375,6 +519,13 @@ function render() {
   const info = $('pendingInfo');
   info.classList.toggle('hidden', !pend || !!g.winner);
   if (pend) info.textContent = pendingText(g, pend, myTurn, turnName);
+
+  const hint = hintText(g, s, myTurn);
+  $('hint').classList.toggle('hidden', !hint);
+  $('hint').textContent = hint;
+  $('hint').classList.toggle('urgent', hint.startsWith('⚠️') || hint.startsWith('👀'));
+  // la prima volta che si gioca una modalità si aprono le regole
+  if (!prevG && !g.winner && !load(`uno-rules-${g.mode}`)) showRules(g.mode);
 
   $('takeBtn').classList.toggle('hidden', !stackPending);
   if (stackPending) $('takeBtn').textContent = `Pesca ${pend.amount} carte`;

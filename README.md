@@ -7,6 +7,8 @@ Una copia di UNO giocabile online con gli amici, direttamente dal browser (anche
 - Quattro modalità: **UNO Classico**, **UNO Flip**, **UNO Show 'Em No Mercy** e **UNO Casinò**
 - Pulsante **UNO!** e possibilità di "beccare" chi se lo dimentica (+2 carte)
 - Punteggio cumulativo tra le mani, chat, riconnessione automatica se cade la linea
+- Aiuto nel gioco: pulsante **❓ Regole** con le carte spiegate, suggerimenti su cosa fare a ogni turno
+  e spiegazione quando tocchi una carta che non puoi giocare
 
 ## Giocare in locale
 
