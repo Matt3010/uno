@@ -719,6 +719,8 @@ class Game {
         ? me.hand.map((c) => ({ id: c.id, ...this.face(c), playable: myTurn && this.canPlay(me, c) }))
         : [],
       top: this.face(this.top()),
+      // ultime carte della pila degli scarti, per mostrarle sovrapposte
+      pile: this.discard.slice(-4).map((c) => ({ id: c.id, ...this.face(c) })),
       currentColor: this.currentColor,
       turnId: this.current().id,
       direction: this.direction,

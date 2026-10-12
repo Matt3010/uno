@@ -3,20 +3,31 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <meta name="theme-color" content="#0d4a35" />
   <title>UNO Online</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <!-- Schermata iniziale -->
   <section id="home" class="screen">
-    <h1 class="logo">UNO</h1>
+    <div class="home-cards" aria-hidden="true">
+      <div class="card red deco d1"><div class="inner"><span class="val">7</span></div></div>
+      <div class="card blue deco d2"><div class="inner"><span class="val">⇄</span></div></div>
+      <div class="card wild deco d3"><div class="inner"><span class="val">+4</span></div></div>
+      <div class="card green deco d4"><div class="inner"><span class="val">2</span></div></div>
+      <div class="card yellow deco d5"><div class="inner"><span class="val">⊘</span></div></div>
+    </div>
+    <div class="logo"><span>UNO</span></div>
     <p class="subtitle">Gioca online con i tuoi amici</p>
     <div class="panel">
       <label>Il tuo nome
         <input id="name" maxlength="16" placeholder="Es. Mario" autocomplete="nickname" />
       </label>
       <button id="createBtn" class="btn primary">Crea una stanza</button>
-      <div class="divider">oppure</div>
+      <div class="divider"><span>oppure</span></div>
       <label>Codice stanza
         <input id="codeInput" maxlength="4" placeholder="ABCD" autocapitalize="characters" />
       </label>
@@ -26,29 +37,32 @@
 
   <!-- Sala d'attesa -->
   <section id="lobby" class="screen hidden">
+    <div class="logo small"><span>UNO</span></div>
     <h2>Stanza <span id="lobbyCode" class="code"></span></h2>
-    <p>Condividi questo link con i tuoi amici:</p>
     <div class="share">
       <input id="shareLink" readonly />
-      <button id="copyBtn" class="btn small">Copia</button>
+      <button id="copyBtn" class="btn small">Copia link</button>
     </div>
     <div class="modes" id="modeList">
-      <button class="mode" data-mode="classic">
+      <button class="mode classic" data-mode="classic">
+        <div class="mode-art"><i class="red"></i><i class="yellow"></i><i class="green"></i><i class="blue"></i></div>
         <b>UNO Classico</b>
         <span>Le regole ufficiali di sempre, con la sfida sul Jolly +4. Si vince a 500 punti.</span>
       </button>
-      <button class="mode" data-mode="flip">
+      <button class="mode flip" data-mode="flip">
+        <div class="mode-art"><i class="red"></i><i class="blue"></i><i class="pink"></i><i class="purple"></i></div>
         <b>UNO Flip</b>
-        <span>Carte a doppia faccia: la carta Flip gira tutto sul lato scuro, con +5, Salta tutti e Jolly pesca colore. Vedi il retro delle carte degli avversari.</span>
+        <span>Carte a doppia faccia: la carta Flip gira tutto sul lato scuro, con +5, Salta tutti e Jolly pesca colore.</span>
       </button>
-      <button class="mode" data-mode="nomercy">
+      <button class="mode nomercy" data-mode="nomercy">
+        <div class="mode-art"><i class="red"></i><i class="wild"></i><i class="red"></i><i class="wild"></i></div>
         <b>Show 'Em No Mercy</b>
-        <span>+6, +10 e accumulo delle carte pesca, il 7 scambia e lo 0 passa le mani, si pesca finché non puoi giocare. Con 25 carte sei eliminato!</span>
+        <span>+6, +10 e accumulo, il 7 scambia e lo 0 passa le mani, si pesca finché puoi giocare. Con 25 carte sei fuori!</span>
       </button>
     </div>
     <p id="modeHint" class="muted"></p>
     <ul id="memberList" class="members"></ul>
-    <button id="startBtn" class="btn primary">Inizia partita</button>
+    <button id="startBtn" class="btn primary big">Inizia partita</button>
     <p id="waitHost" class="muted">In attesa che l'host avvii la partita…</p>
     <button id="leaveBtn" class="btn small ghost">Esci</button>
   </section>
@@ -65,11 +79,11 @@
 
     <div class="center">
       <div class="pile">
-        <button id="deck" class="card back" title="Pesca"><span>UNO</span></button>
+        <button id="deck" class="card back" title="Pesca"><div class="inner"><span class="logo-mini">UNO</span></div></button>
         <div class="deck-count" id="deckCount"></div>
       </div>
       <div class="pile">
-        <div id="discard"></div>
+        <div id="discard" class="discard"></div>
         <div id="colorDot" class="color-dot"></div>
       </div>
       <div class="direction" id="direction">⟳</div>
@@ -78,7 +92,7 @@
     <div id="pendingInfo" class="pending-info hidden"></div>
 
     <div class="actions">
-      <button id="takeBtn" class="btn small hidden"></button>
+      <button id="takeBtn" class="btn small danger hidden"></button>
       <button id="passBtn" class="btn small hidden">Passa</button>
       <button id="unoBtn" class="btn uno">UNO!</button>
     </div>
@@ -126,15 +140,17 @@
   <!-- Fine mano -->
   <div id="roundEnd" class="modal hidden">
     <div class="modal-box">
+      <div class="trophy">🏆</div>
       <h3 id="winnerText"></h3>
       <p id="targetText" class="muted"></p>
       <table id="scoreTable" class="scores"></table>
-      <button id="nextRoundBtn" class="btn primary">Nuova mano</button>
+      <button id="nextRoundBtn" class="btn primary big">Nuova mano</button>
       <button id="changeModeBtn" class="btn small ghost">Cambia modalità</button>
       <p id="waitNext" class="muted">In attesa dell'host…</p>
     </div>
   </div>
 
+  <div id="fx" class="fx" aria-hidden="true"></div>
   <div id="toast" class="toast hidden"></div>
 
   <script src="/socket.io/socket.io.js"></script>

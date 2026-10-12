@@ -20,6 +20,8 @@ const COLOR_NAMES = {
 let state = null;
 let pendingWildCard = null; // carta Jolly selezionata in attesa del colore
 let colorPickerMode = null; // 'play' | 'pending'
+let lastGame = null; // stato precedente, per animare i cambiamenti
+let playFlight = null; // carta giocata ancora in volo
 
 // --- Persistenza locale (nome e riconnessione) ---
 function store(key, value) {
@@ -211,9 +213,36 @@ function cardEl(card, tag = 'div') {
   c1.textContent = label;
   const c2 = c1.cloneNode(true);
   c2.className = 'corner br';
-  el.append(c1, val, c2);
+  const inner = document.createElement('div');
+  inner.className = 'inner';
+  inner.append(c1, val, c2);
+  el.append(inner);
   el.title = describeCard(card);
   return el;
+}
+
+function backEl() {
+  const el = document.createElement('div');
+  el.className = 'card back';
+  el.innerHTML = '<div class="inner"><span class="logo-mini">UNO</span></div>';
+  return el;
+}
+
+// Colore dell'avatar ricavato dal nome
+const AVATAR_COLORS = ['#e8322f', '#1f6fdc', '#2fa84f', '#f47b16', '#7a3dc4', '#e8438f', '#0aa6a6', '#c79a00'];
+function avatarEl(name) {
+  const a = document.createElement('div');
+  a.className = 'avatar';
+  let h = 0;
+  for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  a.style.background = AVATAR_COLORS[h % AVATAR_COLORS.length];
+  a.textContent = (name.trim()[0] || '?').toUpperCase();
+  return a;
+}
+
+// Rotazione "casuale" ma stabile per le carte nella pila degli scarti
+function pileTilt(id) {
+  return { r: ((id * 47) % 31) - 15, x: ((id * 13) % 9) - 4, y: ((id * 7) % 7) - 3 };
 }
 
 const CARD_NAMES = {
@@ -246,11 +275,12 @@ function renderLobby(s, isHost) {
   for (const m of s.members) {
     const li = document.createElement('li');
     const name = document.createElement('span');
+    name.className = 'who';
     name.textContent = m.name + (m.id === s.you ? ' (tu)' : '');
     const tag = document.createElement('span');
     tag.className = 'tag';
     tag.textContent = (m.id === s.hostId ? '👑 host' : '') + (m.connected ? '' : ' offline');
-    li.append(name, tag);
+    li.append(avatarEl(m.name), name, tag);
     if (isHost && m.id !== s.you) {
       const k = document.createElement('button');
       k.className = 'kick';
@@ -273,11 +303,14 @@ function render() {
   const g = s.game;
 
   if (!g) {
+    lastGame = null;
     closeColorPicker();
     for (const id of ['challengeBox', 'swapBox', 'roundEnd']) $(id).classList.add('hidden');
     return renderLobby(s, isHost);
   }
 
+  const prevG = lastGame;
+  const before = snapshotRects();
   show('table');
   document.documentElement.classList.toggle('dark-side', g.side === 'dark');
   $('tableCode').textContent = s.code;
@@ -292,23 +325,29 @@ function render() {
   renderOpponents(s, g);
 
   // Centro tavolo
-  $('discard').innerHTML = '';
-  if (g.top) {
-    const top = cardEl(g.top);
-    if (g.top.color === 'wild' && g.currentColor) {
-      top.classList.remove('wild');
-      top.classList.add(g.currentColor);
+  const discard = $('discard');
+  discard.innerHTML = '';
+  g.pile.forEach((c, i) => {
+    const el = cardEl(c);
+    const t = pileTilt(c.id);
+    el.style.transform = `translate(${t.x}px, ${t.y}px) rotate(${t.r}deg)`;
+    if (i < g.pile.length - 1) el.classList.add('under');
+    else {
+      el.id = 'topCard';
+      // un Jolly in cima prende il colore scelto
+      if (c.color === 'wild' && g.currentColor) el.style.setProperty('--c', `var(--${g.currentColor})`);
     }
-    $('discard').append(top);
-  }
+    discard.append(el);
+  });
   $('colorDot').style.background = g.currentColor ? `var(--${g.currentColor})` : 'transparent';
+  $('colorDot').style.color = g.currentColor ? `var(--${g.currentColor})` : 'transparent';
   $('deckCount').textContent = `${g.deckCount} carte`;
   $('direction').classList.toggle('ccw', g.direction === -1);
 
   // Mazzo: in Flip si vede il retro della prima carta
   const deck = $('deck');
   deck.className = 'card back';
-  deck.innerHTML = '<span>UNO</span>';
+  deck.innerHTML = '<div class="inner"><span class="logo-mini">UNO</span></div>';
   if (g.deckBack) {
     const b = cardEl(g.deckBack);
     deck.className = b.className + ' deck-face';
@@ -379,11 +418,13 @@ function render() {
   const sorted = [...g.hand].sort((a, b) => order.indexOf(a.color) - order.indexOf(b.color) || valueRank(a) - valueRank(b));
   for (const c of sorted) {
     const el = cardEl(c, 'button');
+    el.dataset.id = c.id;
     if (c.playable) el.classList.add('playable');
     else if (myTurn) el.classList.add('dim');
     el.onclick = () => playCard(c);
     hand.append(el);
   }
+  fanHand(hand);
   const me = g.players.find((p) => p.id === s.you);
   $('unoBtn').classList.toggle('hidden', !me);
   $('unoBtn').disabled = !me || me.saidUno || !(me.cardCount === 1 || (me.cardCount === 2 && myTurn));
@@ -402,6 +443,158 @@ function render() {
   log.scrollTop = log.scrollHeight;
 
   renderRoundEnd(s, g, isHost);
+  if (prevG) animateChanges(prevG, g, s, before);
+  lastGame = g;
+}
+
+// --- Mano a ventaglio ---
+function fanHand(hand) {
+  const cards = [...hand.children];
+  const n = cards.length;
+  if (!n) return;
+  const cardW = cards[0].offsetWidth;
+  const avail = hand.clientWidth - 24;
+  const step = n > 1 ? Math.min(cardW + 8, (avail - cardW) / (n - 1)) : 0;
+  const mid = (n - 1) / 2;
+  const maxRot = Math.min(14, n * 1.6);
+  const maxDrop = Math.min(16, n * 1.5);
+  cards.forEach((el, i) => {
+    const t = mid ? (i - mid) / mid : 0;
+    el.style.marginLeft = i ? `${step - cardW}px` : '0';
+    el.style.setProperty('--r', `${t * maxRot}deg`);
+    el.style.setProperty('--y', `${t * t * maxDrop}px`);
+  });
+}
+window.addEventListener('resize', () => {
+  if (state && state.game) fanHand($('hand'));
+});
+
+// --- Animazioni ---
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function snapshotRects() {
+  const hand = {};
+  for (const el of document.querySelectorAll('#hand .card')) hand[el.dataset.id] = el.getBoundingClientRect();
+  const opp = {};
+  for (const el of document.querySelectorAll('.opp[data-pid]')) opp[el.dataset.pid] = el.getBoundingClientRect();
+  return { hand, opp, deck: $('deck').getBoundingClientRect() };
+}
+
+function center(r) {
+  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+}
+
+// Fa volare "el" dal rettangolo "from" fino a "to" (dove finisce con la trasformazione "endTransform")
+function fly(el, from, to, { delay = 0, endTransform = '', startScale = 1, endOpacity = 1, onDone } = {}) {
+  el.classList.add('flying');
+  $('fx').append(el);
+  const w = el.offsetWidth;
+  const h = el.offsetHeight;
+  const end = center(to);
+  const start = center(from);
+  el.style.left = `${end.x - w / 2}px`;
+  el.style.top = `${end.y - h / 2}px`;
+  const anim = el.animate(
+    [
+      { transform: `translate(${start.x - end.x}px, ${start.y - end.y}px) scale(${startScale}) rotate(-25deg)`, opacity: 0.7 },
+      { transform: `${endTransform} scale(1)`, opacity: endOpacity },
+    ],
+    { duration: 420, delay, easing: 'cubic-bezier(.2,.8,.25,1)', fill: 'backwards' },
+  );
+  anim.onfinish = () => {
+    el.remove();
+    if (onDone) onDone();
+  };
+}
+
+function burst(text, rect) {
+  const b = document.createElement('div');
+  b.className = 'uno-burst';
+  b.textContent = text;
+  const c = center(rect);
+  b.style.left = `${c.x}px`;
+  b.style.top = `${c.y}px`;
+  $('fx').append(b);
+  setTimeout(() => b.remove(), 1300);
+}
+
+function confetti(amount) {
+  const colors = ['--red', '--yellow', '--green', '--blue', '--pink', '--orange'];
+  for (let i = 0; i < amount; i++) {
+    const p = document.createElement('div');
+    p.className = 'confetti';
+    p.style.left = `${Math.random() * 100}vw`;
+    p.style.background = `var(${colors[i % colors.length]})`;
+    p.style.setProperty('--dx', `${(Math.random() - 0.5) * 200}px`);
+    p.style.setProperty('--rot', `${Math.random() * 900 - 450}deg`);
+    p.style.animationDuration = `${2 + Math.random() * 2}s`;
+    p.style.animationDelay = `${Math.random() * 0.5}s`;
+    $('fx').append(p);
+    setTimeout(() => p.remove(), 5000);
+  }
+}
+
+function animateChanges(prev, g, s, before) {
+  if (reduceMotion || (prev.winner && !g.winner)) return; // nuova mano: niente animazioni
+
+  if (!prev.winner && g.winner) confetti(g.winner.id === s.you ? 140 : 70);
+
+  // Turno appena diventato mio: piccola vibrazione sul telefono
+  if (g.turnId === s.you && prev.turnId !== s.you && !g.winner && navigator.vibrate) navigator.vibrate(40);
+
+  const top = g.pile[g.pile.length - 1];
+  const prevTop = prev.pile[prev.pile.length - 1];
+  const flipped = prev.side !== g.side;
+  const topEl = $('topCard');
+  if (playFlight && (flipped || (top && prevTop && top.id !== prevTop.id))) {
+    // una nuova giocata interrompe l'animazione della precedente
+    playFlight.remove();
+    playFlight = null;
+  }
+  if (flipped) {
+    // Flip: la pila e la mano si girano
+    for (const el of [$('discard'), $('hand')]) {
+      el.animate([{ transform: 'rotateY(90deg)' }, { transform: 'rotateY(0)' }], { duration: 450, easing: 'ease-out' });
+    }
+  } else if (top && prevTop && top.id !== prevTop.id && topEl) {
+    // Carta giocata: vola dalla mano (o dall'avversario) alla pila
+    const actor = prev.turnId;
+    const from = (actor === s.you && before.hand[top.id]) || before.opp[actor] || before.deck;
+    const clone = cardEl(top);
+    if (top.color === 'wild' && g.currentColor) clone.style.setProperty('--c', `var(--${g.currentColor})`);
+    topEl.style.visibility = 'hidden';
+    playFlight = clone;
+    fly(clone, from, $('discard').getBoundingClientRect(), {
+      endTransform: topEl.style.transform,
+      startScale: actor === s.you ? 1 : 0.5,
+      onDone: () => {
+        topEl.style.visibility = '';
+        if (playFlight === clone) playFlight = null;
+      },
+    });
+  }
+
+  // Carte pescate: dal mazzo verso chi le prende (non per scambi di mano)
+  const handsMoved = prev.pending && prev.pending.type === 'swap' || (top && top.value === '0' && g.mode === 'nomercy' && top.id !== (prevTop && prevTop.id));
+  for (const p of g.players) {
+    const old = prev.players.find((x) => x.id === p.id);
+    if (!old) continue;
+    const target = p.id === s.you ? $('hand') : document.querySelector(`.opp[data-pid="${p.id}"]`);
+    if (!target) continue;
+    const gained = p.cardCount - old.cardCount;
+    if (gained > 0 && !handsMoved) {
+      const to = target.getBoundingClientRect();
+      for (let i = 0; i < Math.min(gained, 6); i++) {
+        fly(backEl(), before.deck, to, {
+          delay: i * 90,
+          startScale: 1,
+          endTransform: p.id === s.you ? '' : 'scale(0.4)',
+          endOpacity: p.id === s.you ? 1 : 0,
+        });
+      }
+    }
+    if (p.saidUno && !old.saidUno) burst('UNO!', target.getBoundingClientRect());
+  }
 }
 
 function pendingText(g, pend, myTurn, turnName) {
@@ -431,9 +624,13 @@ function renderOpponents(s, g) {
     const member = s.members.find((m) => m.id === p.id);
     const d = document.createElement('div');
     d.className = 'opp' + (p.id === g.turnId && !g.winner ? ' turn' : '') + (member && !member.connected ? ' offline' : '');
+    d.dataset.pid = p.id;
     const name = document.createElement('div');
-    name.className = 'name';
-    name.textContent = p.name + (member && !member.connected ? ' 📴' : '');
+    name.className = 'head';
+    const nameText = document.createElement('span');
+    nameText.className = 'name';
+    nameText.textContent = p.name + (member && !member.connected ? ' 📴' : '');
+    name.append(avatarEl(p.name), nameText);
     const minis = document.createElement('div');
     minis.className = 'mini-cards';
     const shown = Math.min(p.cardCount, 12);
@@ -486,9 +683,9 @@ function renderRoundEnd(s, g, isHost) {
   $('roundEnd').classList.remove('hidden');
   const mw = s.matchWinner;
   if (mw) {
-    $('winnerText').textContent = mw.id === s.you ? `🎉 Hai vinto la partita con ${mw.score} punti!` : `🏆 ${mw.name} vince la partita con ${mw.score} punti!`;
+    $('winnerText').textContent = mw.id === s.you ? `Hai vinto la partita con ${mw.score} punti!` : `${mw.name} vince la partita con ${mw.score} punti!`;
   } else {
-    $('winnerText').textContent = g.winner.id === s.you ? '🎉 Hai vinto la mano!' : `🏆 ${g.winner.name} vince la mano!`;
+    $('winnerText').textContent = g.winner.id === s.you ? 'Hai vinto la mano!' : `${g.winner.name} vince la mano!`;
   }
   $('targetText').textContent = mw ? 'Fine partita' : `Vince la partita chi arriva a ${s.targetScore} punti`;
   $('nextRoundBtn').textContent = mw ? 'Nuova partita' : 'Nuova mano';
