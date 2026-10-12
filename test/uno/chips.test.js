@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const { chipColumns } = require('../public/chips');
+const { chipColumns } = require('../../public/uno/chips');
 
 const total = (cols) => cols.reduce((n, c) => n + c.value * c.count, 0);
 

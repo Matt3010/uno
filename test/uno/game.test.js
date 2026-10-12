@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const { Game, createDeck } = require('../game');
+const { Game, createDeck } = require('../../uno/game');
 
 const two = () => [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }];
 const three = () => [...two(), { id: 'c', name: 'C' }];
@@ -231,7 +231,7 @@ test('il mazzo si rimescola quando finisce', () => {
 });
 
 // ---------------- UNO Flip ----------------
-const { createFlipDeck, createNoMercyDeck } = require('../game');
+const { createFlipDeck, createNoMercyDeck } = require('../../uno/game');
 
 const fc = (light, dark) => ({ id: nid++, light: { color: light[0], value: light[1] }, dark: { color: dark[0], value: dark[1] } });
 

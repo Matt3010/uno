@@ -1,8 +1,8 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const { Game } = require('../game');
-const { chooseAction, applyAction } = require('../bot');
+const { Game } = require('../../uno/game');
+const { chooseAction, applyAction } = require('../../uno/bot');
 
 // Partite intere giocate solo da computer: devono sempre arrivare a un vincitore senza errori
 for (const mode of ['classic', 'flip', 'nomercy', 'gambling']) {
@@ -48,7 +48,7 @@ test('il computer difficile attacca chi sta per vincere e tiene i Jolly', () => 
 });
 
 test('i computer non vanno troppo veloci: si vede cosa fanno', () => {
-  const bots = require('../bot');
+  const bots = require('../../uno/bot');
   for (const L of Object.values(bots.LEVELS)) assert.ok(L.think[0] >= 2500, `${L.name} pensa almeno 2,5 s`);
   assert.ok(bots.AFTER_DRAW[0] >= 1500, 'dopo aver pescato aspetta almeno 1,5 s');
 });
