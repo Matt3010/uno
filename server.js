@@ -77,22 +77,6 @@ function armTurnTimer(room) {
 }
 
 // --- Giocatori computer ---
-const BOT_LINES = {
-  win: ['Evvai! 🎉', 'GG 😎', 'Facile facile 😏', 'Sììì! 🏆'],
-  ouch: ['Ma dai! 😤', 'Nooo 😩', 'Questa me la segno…', 'Ma perché a me?! 😭'],
-  caught: ['Beccato! 😏', 'UNO non l\'hai detto 😂', 'Occhio! 👀'],
-};
-
-function botSay(room, m, kind, chance = 1) {
-  if (Math.random() > chance) return;
-  const lines = BOT_LINES[kind];
-  const text = lines[Math.floor(Math.random() * lines.length)];
-  // risponde dopo un attimo, come una persona che scrive
-  setTimeout(() => {
-    if (rooms.get(room.code) === room) io.to(room.code).emit('chat', { name: m.name, text });
-  }, bots.between([700, 1800]) * BOT_DELAY_SCALE);
-}
-
 function clearBotTimers(room) {
   clearTimeout(room.botHandle);
   (room.unoHandles || []).forEach(clearTimeout);
@@ -116,18 +100,14 @@ function scheduleBots(room) {
       const delay = (g.hasDrawn ? bots.between([600, 1200]) : bots.between(L.think)) * BOT_DELAY_SCALE;
       room.botHandle = setTimeout(() => {
         if (room.game !== g || g.winner || turnKey(g) !== key) return;
-        const before = g.current().hand.length;
         try {
           const action = bots.chooseAction(g, cur.id, cur.level);
           if (action) bots.applyAction(g, cur.id, action, cur.level);
-          const me = g.players.find((p) => p.id === cur.id);
-          if (me && me.hand.length - before >= 4) botSay(room, cur, 'ouch', 0.4);
         } catch (e) {
           console.error(e);
           try { g.autoPlay(); } catch (e2) { console.error(e2); }
         }
         applyWinner(room);
-        if (g.winner && g.winner.id === cur.id) botSay(room, cur, 'win', 0.8);
         broadcast(room);
       }, delay);
     }
@@ -157,7 +137,6 @@ function scheduleBots(room) {
       if (!still()) return;
       try {
         g.catchUno(m.id, target);
-        botSay(room, m, 'caught', 0.5);
       } catch (e) { /* troppo tardi */ }
       applyWinner(room);
       broadcast(room);
