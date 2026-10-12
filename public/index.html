@@ -90,10 +90,24 @@
     </div>
   </div>
 
+  <!-- Sfida al +4 -->
+  <div id="wild4Box" class="modal hidden">
+    <div class="modal-box">
+      <h3 id="wild4Text"></h3>
+      <p class="muted">Se sfidi ed era un bluff (aveva una carta del colore precedente), le 4 carte le pesca chi l'ha giocato.<br />
+        Se invece il +4 era regolare, peschi tu 6 carte.</p>
+      <div class="row">
+        <button id="acceptBtn" class="btn">Accetta (+4)</button>
+        <button id="challengeBtn" class="btn primary">Sfida!</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Fine mano -->
   <div id="roundEnd" class="modal hidden">
     <div class="modal-box">
       <h3 id="winnerText"></h3>
+      <p id="targetText" class="muted"></p>
       <table id="scoreTable" class="scores"></table>
       <button id="nextRoundBtn" class="btn primary">Nuova mano</button>
       <p id="waitNext" class="muted">In attesa dell'host…</p>

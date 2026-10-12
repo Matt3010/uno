@@ -7,6 +7,7 @@ const SYMBOLS = { skip: '⊘', reverse: '⇄', draw2: '+2', wild: '★', wild4: 
 
 let state = null;
 let pendingWildCard = null;
+let colorPickerOpen = false;
 
 // --- Persistenza locale (nome e riconnessione) ---
 function store(key, value) {
@@ -86,15 +87,26 @@ $('leaveBtn2').onclick = leave;
 $('deck').onclick = () => socket.emit('draw');
 $('passBtn').onclick = () => socket.emit('pass');
 $('unoBtn').onclick = () => socket.emit('uno');
-$('cancelColor').onclick = () => {
+$('acceptBtn').onclick = () => socket.emit('accept4');
+$('challengeBtn').onclick = () => socket.emit('challenge4');
+function openColorPicker(cancellable) {
+  colorPickerOpen = true;
+  $('cancelColor').classList.toggle('hidden', !cancellable);
+  $('colorPicker').classList.remove('hidden');
+}
+function closeColorPicker() {
+  colorPickerOpen = false;
   pendingWildCard = null;
   $('colorPicker').classList.add('hidden');
-};
+}
+$('cancelColor').onclick = closeColorPicker;
 for (const b of document.querySelectorAll('#colorPicker .c')) {
   b.onclick = () => {
-    if (pendingWildCard != null) socket.emit('play', { cardId: pendingWildCard, color: b.dataset.color });
-    pendingWildCard = null;
-    $('colorPicker').classList.add('hidden');
+    const color = b.dataset.color;
+    // senza carta selezionata è la scelta del colore per la prima carta Jolly
+    if (pendingWildCard != null) socket.emit('play', { cardId: pendingWildCard, color });
+    else socket.emit('color', { color });
+    closeColorPicker();
   };
 }
 $('chatForm').onsubmit = (e) => {
@@ -108,7 +120,7 @@ function playCard(card) {
   if (!card.playable) return;
   if (card.color === 'wild') {
     pendingWildCard = card.id;
-    $('colorPicker').classList.remove('hidden');
+    openColorPicker(true);
   } else {
     socket.emit('play', { cardId: card.id });
   }
@@ -266,11 +278,27 @@ function render() {
     }
     $('discard').append(top);
   }
-  $('colorDot').style.background = `var(--${g.currentColor})`;
+  $('colorDot').style.background = g.currentColor ? `var(--${g.currentColor})` : 'transparent';
   $('deckCount').textContent = `${g.deckCount} carte`;
   $('direction').classList.toggle('ccw', g.direction === -1);
-  $('deck').disabled = !myTurn || g.hasDrawn;
-  $('deck').classList.toggle('can-draw', myTurn && !g.hasDrawn && !g.hand.some((c) => c.playable));
+  const blocked = !!g.pendingWild4 || g.mustChooseColor;
+  $('deck').disabled = !myTurn || g.hasDrawn || blocked;
+  $('deck').classList.toggle('can-draw', myTurn && !g.hasDrawn && !blocked && !g.hand.some((c) => c.playable));
+
+  // Prima carta Jolly: tocca a me scegliere il colore
+  if (myTurn && g.mustChooseColor) {
+    if (!colorPickerOpen) openColorPicker(false);
+  } else if (colorPickerOpen && pendingWildCard == null) {
+    closeColorPicker();
+  }
+
+  // +4 ricevuto: accetta o sfida
+  const w4 = g.pendingWild4;
+  $('wild4Box').classList.toggle('hidden', !(w4 && w4.to === s.you && !g.winner));
+  if (w4) {
+    const from = g.players.find((p) => p.id === w4.from);
+    $('wild4Text').textContent = `${from ? from.name : '?'} ti ha giocato un Jolly +4`;
+  }
   $('passBtn').classList.toggle('hidden', !(myTurn && g.hasDrawn));
 
   // La mia mano
@@ -302,7 +330,14 @@ function render() {
   // Fine mano
   if (g.winner) {
     $('roundEnd').classList.remove('hidden');
-    $('winnerText').textContent = g.winner.id === s.you ? '🎉 Hai vinto la mano!' : `🏆 ${g.winner.name} vince la mano!`;
+    const mw = s.matchWinner;
+    if (mw) {
+      $('winnerText').textContent = mw.id === s.you ? `🎉 Hai vinto la partita con ${mw.score} punti!` : `🏆 ${mw.name} vince la partita con ${mw.score} punti!`;
+    } else {
+      $('winnerText').textContent = g.winner.id === s.you ? '🎉 Hai vinto la mano!' : `🏆 ${g.winner.name} vince la mano!`;
+    }
+    $('targetText').textContent = mw ? 'Fine partita' : `Vince la partita chi arriva a ${s.targetScore} punti`;
+    $('nextRoundBtn').textContent = mw ? 'Nuova partita' : 'Nuova mano';
     const table = $('scoreTable');
     table.innerHTML = '';
     for (const m of [...s.members].sort((a, b) => b.score - a.score)) {

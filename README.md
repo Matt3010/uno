@@ -43,17 +43,27 @@ Con il server avviato in locale: `npx localtunnel --port 3000` oppure
 
 ## Come si gioca
 
+Le regole sono quelle **ufficiali** di UNO.
+
 1. Uno crea la stanza e condivide il link (o il codice).
 2. Gli altri entrano con il proprio nome; l'host preme **Inizia partita**.
-3. Al tuo turno clicca una carta evidenziata, oppure pesca dal mazzo.
-   Se la carta pescata è giocabile puoi giocarla o premere **Passa**.
-4. Quando stai per rimanere con una carta premi **UNO!** (prima o subito dopo aver giocato).
+   Chi distribuisce ruota a ogni mano e inizia il giocatore alla sua sinistra.
+3. Al tuo turno clicca una carta evidenziata, oppure pesca una carta dal mazzo.
+   Se la carta pescata è giocabile puoi giocarla subito o premere **Passa**.
+4. **Jolly +4**: si può giocare sempre, ma è regolare solo se non hai carte del colore in tavola.
+   Chi lo riceve può **accettare** (pesca 4 e salta il turno) o **sfidare**:
+   - se era un bluff, le 4 carte le pesca chi l'ha giocato e chi ha sfidato gioca normalmente;
+   - se era regolare, chi ha sfidato pesca 6 carte e salta il turno.
+5. **Prima carta scoperta**: si applica il suo effetto (Salta, Inverti, +2; con il Jolly il primo
+   giocatore sceglie il colore). Un Jolly +4 viene rimesso nel mazzo.
+6. In 2 giocatori **Inverti** vale come **Salta**.
+7. Quando stai per rimanere con una carta premi **UNO!** (prima o subito dopo aver giocato).
    Se te lo dimentichi, gli altri possono premere *"Non ha detto UNO!"* finché il giocatore
    successivo non agisce: peschi 2 carte.
-5. Chi finisce le carte vince la mano e prende i punti delle carte rimaste agli altri
-   (numeri = valore, azioni = 20, jolly = 50).
-
-Regole: niente accumulo di +2/+4; il Jolly +4 si può giocare solo se non hai carte del colore attuale.
+8. Chi finisce le carte vince la mano e prende i punti delle carte rimaste agli altri
+   (numeri = valore, azioni = 20, jolly = 50). Se l'ultima carta è un +2/+4, il giocatore
+   successivo pesca comunque e quelle carte contano nei punti.
+9. Vince la **partita** chi arriva per primo a **500 punti**.
 
 ## Sviluppo
 

@@ -44,7 +44,7 @@ class GameError extends Error {}
  * players: array di { id, name } nell'ordine di gioco.
  */
 class Game {
-  constructor(players) {
+  constructor(players, { dealer } = {}) {
     if (players.length < 2) throw new GameError('Servono almeno 2 giocatori');
     this.players = players.map((p) => ({ id: p.id, name: p.name, hand: [], saidUno: false }));
     this.deck = shuffle(createDeck());
@@ -55,6 +55,8 @@ class Game {
     this.hasDrawn = false; // il giocatore di turno ha già pescato
     this.drawnCardId = null; // carta pescata giocabile
     this.unoVulnerable = null; // id del giocatore che può essere "beccato" senza UNO
+    this.mustChooseColor = false; // prima carta Jolly: il primo giocatore sceglie il colore
+    this.pendingWild4 = null; // { from, to, legal } in attesa di accetta/sfida
     this.winner = null;
     this.log = [];
 
@@ -62,16 +64,57 @@ class Game {
       for (const p of this.players) p.hand.push(this.drawOne());
     }
 
-    // La prima carta deve essere un numero
+    // Regola ufficiale: un Jolly +4 come prima carta torna nel mazzo
     let first = this.drawOne();
-    while (!/^\d$/.test(first.value)) {
+    while (first.value === 'wild4') {
       this.deck.unshift(first);
+      shuffle(this.deck);
       first = this.drawOne();
     }
     this.discard.push(first);
-    this.currentColor = first.color;
-    this.turn = Math.floor(Math.random() * this.players.length);
+
+    const n = this.players.length;
+    const d = Number.isInteger(dealer) ? ((dealer % n) + n) % n : Math.floor(Math.random() * n);
+    this.addLog(`Distribuisce ${this.players[d].name}`);
+    this.turn = d;
+    this.advance(1);
+    this.applyFirstCard(first, d);
+  }
+
+  // Effetto della prima carta scoperta (regole ufficiali)
+  applyFirstCard(card, dealer) {
+    this.currentColor = card.color === 'wild' ? null : card.color;
+    switch (card.value) {
+      case 'wild':
+        this.mustChooseColor = true;
+        this.addLog(`Prima carta Jolly: ${this.current().name} sceglie il colore`);
+        break;
+      case 'skip':
+        this.addLog(`Prima carta Salta: ${this.current().name} salta il turno`);
+        this.advance(1);
+        break;
+      case 'reverse':
+        this.direction = -1;
+        this.addLog('Prima carta Inverti: inizia chi distribuisce, in senso opposto');
+        this.turn = dealer;
+        break;
+      case 'draw2':
+        this.draw(this.current(), 2);
+        this.addLog(`Prima carta +2: ${this.current().name} pesca 2 carte e salta il turno`);
+        this.advance(1);
+        break;
+      default:
+    }
     this.addLog(`Si parte! Inizia ${this.current().name}`);
+  }
+
+  chooseColor(playerId, color) {
+    this.assertTurn(playerId);
+    if (!this.mustChooseColor) throw new GameError('Il colore è già stato scelto');
+    if (!COLORS.includes(color)) throw new GameError('Colore non valido');
+    this.mustChooseColor = false;
+    this.currentColor = color;
+    this.addLog(`${this.current().name} sceglie il ${COLOR_NAMES[color]}`);
   }
 
   addLog(msg) {
@@ -126,14 +169,19 @@ class Game {
     if (this.current().id !== id) throw new GameError('Non è il tuo turno');
   }
 
+  // Turno "normale": niente +4 in sospeso né colore iniziale da scegliere
+  assertAction(id) {
+    this.assertTurn(id);
+    if (this.pendingWild4) throw new GameError('Devi accettare o sfidare il +4');
+    if (this.mustChooseColor) throw new GameError('Scegli prima il colore');
+  }
+
   canPlay(player, card) {
     const top = this.top();
+    if (this.pendingWild4 || this.mustChooseColor) return false;
     if (this.hasDrawn && card.id !== this.drawnCardId) return false;
-    if (card.value === 'wild') return true;
-    if (card.value === 'wild4') {
-      // regola ufficiale: +4 solo se non hai carte del colore corrente
-      return !player.hand.some((c) => c.color === this.currentColor);
-    }
+    // Il +4 si può sempre giocare: se è un bluff, il giocatore successivo può sfidarlo
+    if (card.color === 'wild') return true;
     return card.color === this.currentColor || card.value === top.value;
   }
 
@@ -144,7 +192,7 @@ class Game {
   }
 
   play(playerId, cardId, chosenColor) {
-    this.assertTurn(playerId);
+    this.assertAction(playerId);
     const player = this.getPlayer(playerId);
     const idx = player.hand.findIndex((c) => c.id === cardId);
     if (idx === -1) throw new GameError('Carta non trovata');
@@ -153,6 +201,7 @@ class Game {
     if (card.color === 'wild' && !COLORS.includes(chosenColor)) throw new GameError('Scegli un colore');
 
     this.clearVulnerable(playerId);
+    const prevColor = this.currentColor;
     player.hand.splice(idx, 1);
     this.discard.push(card);
     this.currentColor = card.color === 'wild' ? chosenColor : card.color;
@@ -166,6 +215,13 @@ class Game {
     }
 
     if (player.hand.length === 0) {
+      // Se l'ultima carta è un +2 o +4, il successivo pesca comunque (conta nei punti)
+      const penalty = { draw2: 2, wild4: 4 }[card.value];
+      if (penalty) {
+        const victim = this.players[this.nextIndex()];
+        this.draw(victim, penalty);
+        this.addLog(`${victim.name} pesca ${penalty} carte`);
+      }
       this.finish(player);
       return;
     }
@@ -194,10 +250,11 @@ class Game {
         break;
       }
       case 'wild4': {
-        const victim = this.players[this.nextIndex()];
-        this.draw(victim, 4);
-        this.addLog(`${victim.name} pesca 4 carte e salta il turno`);
-        this.advance(2);
+        // Legale solo se non si avevano carte del colore precedente
+        const legal = !player.hand.some((c) => c.color === prevColor);
+        this.advance(1);
+        this.pendingWild4 = { from: player.id, to: this.current().id, legal };
+        this.addLog(`${this.current().name} deve decidere: accettare o sfidare il +4`);
         break;
       }
       default:
@@ -205,8 +262,38 @@ class Game {
     }
   }
 
-  drawCard(playerId) {
+  acceptWild4(playerId) {
     this.assertTurn(playerId);
+    if (!this.pendingWild4) throw new GameError('Nessun +4 da accettare');
+    this.clearVulnerable(playerId);
+    const victim = this.current();
+    this.pendingWild4 = null;
+    this.draw(victim, 4);
+    this.addLog(`${victim.name} pesca 4 carte e salta il turno`);
+    this.advance(1);
+  }
+
+  challengeWild4(playerId) {
+    this.assertTurn(playerId);
+    const pending = this.pendingWild4;
+    if (!pending) throw new GameError('Nessun +4 da sfidare');
+    this.clearVulnerable(playerId);
+    const victim = this.current();
+    const offender = this.players.find((p) => p.id === pending.from);
+    this.pendingWild4 = null;
+    if (!pending.legal && offender) {
+      this.draw(offender, 4);
+      this.addLog(`${victim.name} sfida il +4 e vince: ${offender.name} bluffava e pesca 4 carte!`);
+      // la sfidante gioca normalmente il proprio turno
+    } else {
+      this.draw(victim, 6);
+      this.addLog(`${victim.name} sfida il +4 e perde: pesca 6 carte e salta il turno`);
+      this.advance(1);
+    }
+  }
+
+  drawCard(playerId) {
+    this.assertAction(playerId);
     if (this.hasDrawn) throw new GameError('Hai già pescato');
     const player = this.getPlayer(playerId);
     this.clearVulnerable(playerId);
@@ -229,7 +316,7 @@ class Game {
   }
 
   pass(playerId) {
-    this.assertTurn(playerId);
+    this.assertAction(playerId);
     if (!this.hasDrawn) throw new GameError('Devi prima pescare');
     this.addLog(`${this.current().name} passa`);
     this.advance(1);
@@ -267,6 +354,9 @@ class Game {
     const [p] = this.players.splice(idx, 1);
     this.deck.unshift(...p.hand);
     if (this.unoVulnerable === playerId) this.unoVulnerable = null;
+    if (this.pendingWild4 && [this.pendingWild4.from, this.pendingWild4.to].includes(playerId)) {
+      this.pendingWild4 = null;
+    }
     this.addLog(`${p.name} ha lasciato la partita`);
     if (this.winner) return;
     if (this.players.length < 2) {
@@ -307,6 +397,8 @@ class Game {
       direction: this.direction,
       deckCount: this.deck.length,
       hasDrawn: this.current().id === playerId ? this.hasDrawn : false,
+      mustChooseColor: this.mustChooseColor,
+      pendingWild4: this.pendingWild4 ? { from: this.pendingWild4.from, to: this.pendingWild4.to } : null,
       unoVulnerable: this.unoVulnerable,
       winner: this.winner,
       log: this.log.slice(-12),
@@ -319,7 +411,9 @@ const COLOR_NAMES = { red: 'rosso', yellow: 'giallo', green: 'verde', blue: 'blu
 const VALUE_NAMES = { skip: 'Salta', reverse: 'Inverti', draw2: '+2', wild: 'Jolly', wild4: 'Jolly +4' };
 
 function describe(card, chosenColor) {
-  if (card.color === 'wild') return `${VALUE_NAMES[card.value]} (${COLOR_NAMES[chosenColor]})`;
+  if (card.color === 'wild') {
+    return chosenColor ? `${VALUE_NAMES[card.value]} (${COLOR_NAMES[chosenColor]})` : VALUE_NAMES[card.value];
+  }
   return `${VALUE_NAMES[card.value] || card.value} ${COLOR_NAMES[card.color]}`;
 }
 

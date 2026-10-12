@@ -10,6 +10,7 @@ const { Game, GameError } = require('./game');
 const PORT = process.env.PORT || 3000;
 const MAX_PLAYERS = 10;
 const DISCONNECT_GRACE_MS = 90 * 1000;
+const TARGET_SCORE = 500; // regola ufficiale: vince la partita chi arriva a 500 punti
 
 const app = express();
 const server = http.createServer(app);
@@ -49,6 +50,8 @@ function broadcast(room) {
         score: x.score,
       })),
       game: room.game ? room.game.viewFor(m.id) : null,
+      targetScore: TARGET_SCORE,
+      matchWinner: room.matchWinner,
     });
   }
 }
@@ -75,7 +78,10 @@ function applyWinner(room) {
   if (g && g.winner && !g.scored) {
     g.scored = true;
     const m = room.members.get(g.winner.id);
-    if (m) m.score += g.winner.points;
+    if (m) {
+      m.score += g.winner.points;
+      if (m.score >= TARGET_SCORE) room.matchWinner = { id: m.id, name: m.name, score: m.score };
+    }
   }
 }
 
@@ -102,7 +108,7 @@ io.on('connection', (socket) => {
     if (room) return;
     const code = newRoomCode();
     const id = crypto.randomUUID();
-    const r = { code, hostId: id, members: new Map(), game: null };
+    const r = { code, hostId: id, members: new Map(), game: null, dealer: -1, matchWinner: null };
     r.members.set(id, { id, name: cleanName(name), socketId: null, connected: false, score: 0, timer: null });
     rooms.set(code, r);
     attach(r, r.members.get(id));
@@ -129,7 +135,14 @@ io.on('connection', (socket) => {
     if (room.game && !room.game.winner) return;
     const players = [...room.members.values()];
     if (players.length < 2) return fail('Servono almeno 2 giocatori');
-    room.game = new Game(players);
+    if (room.matchWinner) {
+      // nuova partita: punteggi azzerati
+      room.matchWinner = null;
+      for (const m of players) m.score = 0;
+    }
+    // chi distribuisce ruota a ogni mano
+    room.dealer = (room.dealer + 1) % players.length;
+    room.game = new Game(players, { dealer: room.dealer });
     broadcast(room);
   });
 
@@ -151,6 +164,9 @@ io.on('connection', (socket) => {
   socket.on('play', gameAction((g, { cardId, color }) => g.play(playerId, cardId, color)));
   socket.on('draw', gameAction((g) => g.drawCard(playerId)));
   socket.on('pass', gameAction((g) => g.pass(playerId)));
+  socket.on('color', gameAction((g, { color }) => g.chooseColor(playerId, color)));
+  socket.on('accept4', gameAction((g) => g.acceptWild4(playerId)));
+  socket.on('challenge4', gameAction((g) => g.challengeWild4(playerId)));
   socket.on('uno', gameAction((g) => g.sayUno(playerId)));
   socket.on('catch', gameAction((g, { targetId }) => g.catchUno(playerId, targetId)));
 

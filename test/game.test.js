@@ -12,6 +12,9 @@ function setup(players, hands, top, turn = 0) {
   g.players.forEach((p, i) => { p.hand = hands[i]; });
   g.discard = [top];
   g.currentColor = top.color;
+  g.direction = 1;
+  g.mustChooseColor = false;
+  g.log = [];
   return g;
 }
 let nid = 1000;
@@ -21,11 +24,57 @@ test('il mazzo ha 108 carte', () => {
   assert.strictEqual(createDeck().length, 108);
 });
 
-test('distribuzione iniziale: 7 carte ciascuno, prima carta numerica', () => {
-  const g = new Game(three());
-  for (const p of g.players) assert.strictEqual(p.hand.length, 7);
-  assert.match(g.top().value, /^\d$/);
-  assert.strictEqual(g.deck.length + g.discard.length + 21, 108);
+test('distribuzione iniziale: 7 carte ciascuno, mai +4 come prima carta', () => {
+  for (let i = 0; i < 200; i++) {
+    const g = new Game(three());
+    const extra = g.top().value === 'draw2' ? 2 : 0;
+    assert.strictEqual(g.players.reduce((n, p) => n + p.hand.length, 0), 21 + extra);
+    assert.notStrictEqual(g.top().value, 'wild4');
+    assert.strictEqual(g.deck.length + g.discard.length + 21 + extra, 108);
+  }
+});
+
+// Forza una prima carta specifica in cima al mazzo dopo la distribuzione
+function gameWithFirst(players, value, color = 'red') {
+  // costruisce normalmente (distribuisce il primo giocatore), poi riapplica la prima carta voluta
+  const g = new Game(players, { dealer: 0 });
+  g.players.forEach((p) => { p.hand = p.hand.slice(0, 7); });
+  g.direction = 1;
+  g.mustChooseColor = false;
+  g.turn = 0;
+  g.advance(1);
+  const card = { id: 9999, color, value };
+  g.discard = [card];
+  g.applyFirstCard(card, 0);
+  return g;
+}
+
+test('prima carta: effetti ufficiali', () => {
+  let g = gameWithFirst(three(), 'skip');
+  assert.strictEqual(g.current().id, 'c', 'il primo (b) salta');
+
+  g = gameWithFirst(three(), 'draw2');
+  assert.strictEqual(g.players[1].hand.length, 9);
+  assert.strictEqual(g.current().id, 'c');
+
+  g = gameWithFirst(three(), 'reverse');
+  assert.strictEqual(g.current().id, 'a', 'inizia chi distribuisce');
+  assert.strictEqual(g.direction, -1);
+
+  g = gameWithFirst(three(), 'wild', 'wild');
+  assert.strictEqual(g.current().id, 'b');
+  assert.ok(g.mustChooseColor);
+  assert.throws(() => g.play('b', g.players[1].hand[0].id, 'red'), /colore/);
+  assert.throws(() => g.drawCard('b'), /colore/);
+  assert.throws(() => g.chooseColor('c', 'red'), /turno/);
+  g.chooseColor('b', 'green');
+  assert.strictEqual(g.currentColor, 'green');
+  assert.strictEqual(g.current().id, 'b', 'dopo la scelta gioca lo stesso giocatore');
+});
+
+test('chi distribuisce: inizia il giocatore alla sua sinistra', () => {
+  const g = gameWithFirst(three(), '5');
+  assert.strictEqual(g.current().id, 'b');
 });
 
 test('gioco di carta valida e turno successivo', () => {
@@ -67,18 +116,48 @@ test('salta, inverti, +2', () => {
   assert.strictEqual(g.current().id, 'c');
 });
 
-test('jolly e +4 (solo senza carte del colore)', () => {
+test('+4 accettato: pesca 4 e salta', () => {
   const w4 = c('wild', 'wild4');
-  let g = setup(three(), [[w4, c('red', '1')], [c('red', '1')], [c('red', '2')]], c('red', '3'));
-  assert.throws(() => g.play('a', w4.id, 'blue'), /Non puoi/);
-
-  const w4b = c('wild', 'wild4');
-  g = setup(three(), [[w4b, c('blue', '1')], [c('red', '1')], [c('red', '2')]], c('red', '3'));
-  assert.throws(() => g.play('a', w4b.id), /colore/);
-  g.play('a', w4b.id, 'green');
+  const g = setup(three(), [[w4, c('blue', '1')], [c('red', '1')], [c('red', '2')]], c('red', '3'));
+  assert.throws(() => g.play('a', w4.id), /colore/);
+  g.play('a', w4.id, 'green');
   assert.strictEqual(g.currentColor, 'green');
+  assert.strictEqual(g.current().id, 'b');
+  assert.throws(() => g.drawCard('b'), /sfidare/);
+  assert.throws(() => g.play('b', g.players[1].hand[0].id), /Non puoi|sfidare/);
+  g.acceptWild4('b');
   assert.strictEqual(g.players[1].hand.length, 5);
   assert.strictEqual(g.current().id, 'c');
+});
+
+test('+4 sfidato ed era un bluff: pesca 4 chi l\'ha giocato', () => {
+  const w4 = c('wild', 'wild4');
+  const g = setup(three(), [[w4, c('red', '1'), c('blue', '2')], [c('red', '1')], [c('red', '2')]], c('red', '3'));
+  g.play('a', w4.id, 'blue');
+  g.challengeWild4('b');
+  assert.strictEqual(g.players[0].hand.length, 6);
+  assert.strictEqual(g.players[1].hand.length, 1);
+  assert.strictEqual(g.current().id, 'b', 'chi sfida gioca il suo turno');
+  assert.strictEqual(g.currentColor, 'blue');
+});
+
+test('+4 sfidato ed era regolare: chi sfida pesca 6 e salta', () => {
+  const w4 = c('wild', 'wild4');
+  const g = setup(three(), [[w4, c('blue', '1'), c('green', '7')], [c('red', '1')], [c('red', '2')]], c('red', '7'));
+  g.play('a', w4.id, 'green');
+  g.challengeWild4('b');
+  assert.strictEqual(g.players[0].hand.length, 2);
+  assert.strictEqual(g.players[1].hand.length, 7);
+  assert.strictEqual(g.current().id, 'c');
+});
+
+test('ultima carta +2: il successivo pesca e le carte contano nei punti', () => {
+  const d2 = c('red', 'draw2');
+  const g = setup(three(), [[d2], [c('red', '1')], [c('red', '2')]], c('red', '3'));
+  g.deck.push(c('blue', '5'), c('blue', '4'));
+  g.play('a', d2.id);
+  assert.strictEqual(g.players[1].hand.length, 3);
+  assert.strictEqual(g.winner.points, 1 + 9 + 2);
 });
 
 test('pesca: carta giocabile si può giocare o passare, altrimenti passa automatico', () => {
