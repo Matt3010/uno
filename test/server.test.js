@@ -11,11 +11,11 @@ async function startServer(t) {
   return `http://localhost:${line.match(/:(\d+)/)[1]}`;
 }
 
-test('la pagina iniziale fa scegliere tra UNO e Golf', async (t) => {
+test('la pagina iniziale porta a UNO', async (t) => {
   const url = await startServer(t);
-  const html = await (await fetch(`${url}/`)).text();
-  assert.match(html, /href="\/uno\/"/);
-  assert.match(html, /href="\/golf\/"/);
+  const res = await fetch(`${url}/`, { redirect: 'manual' });
+  assert.strictEqual(res.status, 302);
+  assert.strictEqual(res.headers.get('location'), '/uno/');
   assert.strictEqual((await fetch(`${url}/uno/`)).status, 200);
 });
 
