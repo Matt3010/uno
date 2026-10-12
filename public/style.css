@@ -703,20 +703,6 @@ html.dark-side .modal-box { background: linear-gradient(160deg, #3d2659, #1c1029
 }
 .pot b { font-family: var(--font-display); font-weight: 400; font-size: 26px; color: var(--yellow); line-height: 1; }
 .pot span { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
-.pot-chips { display: flex; height: 18px; }
-.pot-chips i {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  margin-left: -6px;
-  border: 3px dashed #fff;
-  background: var(--red);
-  box-shadow: 0 2px 3px rgba(0, 0, 0, 0.4);
-}
-.pot-chips i:first-child { margin-left: 0; }
-.pot-chips i:nth-child(2) { background: var(--blue); transform: translateY(-3px); }
-.pot-chips i:nth-child(3) { background: var(--green); }
-
 .chips-badge {
   font-weight: 800;
   padding: 7px 14px;
@@ -725,7 +711,7 @@ html.dark-side .modal-box { background: linear-gradient(160deg, #3d2659, #1c1029
   border: 1px solid rgba(249, 200, 14, 0.5);
   color: var(--yellow);
 }
-.opp-chips { font-size: 13px; font-weight: 800; color: var(--yellow); margin-top: 2px; }
+.opp-chips { font-size: 13px; font-weight: 800; color: var(--yellow); margin-top: 4px; display: flex; align-items: flex-end; justify-content: center; gap: 6px; }
 .opp-chips.broke { color: var(--muted); text-decoration: line-through; }
 
 /* Casinò: slot machine e dadi appoggiati sul tavolo, ai lati delle carte */
@@ -1076,3 +1062,27 @@ html.dark-side .timer-ring { background: radial-gradient(closest-side, #241536 7
   .skip-banner { font-size: 18px; }
   #turnInfo .then { display: block; line-height: 1.1; }
 }
+
+/* Fiche del Casinò: pile di gettoni visti di lato, colore per taglio */
+.chip-pile { --chip: 22px; display: flex; align-items: flex-end; gap: 3px; min-height: calc(var(--chip) * 0.5); }
+.chip-pile.big { --chip: 30px; min-height: 26px; margin-bottom: 2px; }
+.chip-pile.small { --chip: 16px; }
+.chip-col { display: flex; flex-direction: column-reverse; }
+.chip {
+  display: block;
+  width: var(--chip, 22px);
+  height: calc(var(--chip, 22px) * 0.5);
+  border-radius: 50%;
+  background: var(--chip-c);
+  border: 2px dashed rgba(255, 255, 255, 0.95);
+  border-bottom: 3px solid rgba(0, 0, 0, 0.45);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
+}
+.chip-col .chip + .chip { margin-bottom: calc(var(--chip) * -0.3); }
+.chip.c100 { --chip-c: #1d1d1f; border-color: var(--yellow); }
+.chip.c25 { --chip-c: var(--green); }
+.chip.c10 { --chip-c: var(--blue); }
+.chip.c5 { --chip-c: var(--red); }
+.chip.c1 { --chip-c: #e9e4d8; border-color: var(--red); }
+.chip.flying { --chip: 24px; position: fixed; z-index: 30; pointer-events: none; }
+.chips-badge { display: inline-flex; align-items: flex-end; gap: 8px; }

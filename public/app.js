@@ -544,10 +544,21 @@ function render() {
   $('deckCount').textContent = `${g.deckCount} carte`;
   // Casinò: piatto e fiches
   $('potBox').classList.toggle('hidden', g.pot == null);
-  if (g.pot != null) $('potAmount').textContent = g.pot;
+  if (g.pot != null) {
+    $('potAmount').textContent = g.pot;
+    fillChipPile($('potPile'), g.pot);
+  }
   const meP = g.players.find((p) => p.id === s.you);
   $('myChips').classList.toggle('hidden', !meP || meP.chips == null);
-  if (meP && meP.chips != null) $('myChips').textContent = `🪙 ${meP.chips} fiches`;
+  if (meP && meP.chips != null) {
+    $('myChips').innerHTML = '';
+    const pile = document.createElement('div');
+    pile.className = 'chip-pile';
+    fillChipPile(pile, meP.chips);
+    const n = document.createElement('b');
+    n.textContent = `${meP.chips} fiches`;
+    $('myChips').append(pile, n);
+  }
   $('direction').classList.toggle('ccw', g.direction === -1);
 
   // Mazzo: in Flip si vede il retro della prima carta
@@ -648,6 +659,7 @@ function render() {
 
   renderRoundEnd(s, g, isHost);
   if (prevG) animateChanges(prevG, g, s, before);
+  if (prevG && !reduceMotion) animateChips(prevG, g, s);
   if (prevG && g.skip && (!prevG.skip || prevG.skip.seq !== g.skip.seq)) announceSkip(g, s);
   // Casinò: slot machine o dadi appena giocati
   $('casinoTable').classList.toggle('hidden', g.mode !== 'gambling');
@@ -866,6 +878,43 @@ function fly(el, from, to, { delay = 0, endTransform = '', startScale = 1, endOp
   };
 }
 
+// --- Casinò: fiche vere sul tavolo, in pile per taglio ---
+function chipEl(value) {
+  const c = document.createElement('i');
+  c.className = `chip c${value}`;
+  return c;
+}
+
+function fillChipPile(el, amount) {
+  el.innerHTML = '';
+  for (const { value, count } of Chips.chipColumns(amount)) {
+    const col = document.createElement('div');
+    col.className = 'chip-col';
+    col.title = `${count} × ${value}`;
+    for (let i = 0; i < count; i++) col.append(chipEl(value));
+    el.append(col);
+  }
+}
+
+// Fiche che volano tra i giocatori e il piatto quando cambiano
+function animateChips(prev, g, s) {
+  if (g.pot == null || prev.pot == null) return;
+  const pot = $('potBox').getBoundingClientRect();
+  for (const p of g.players) {
+    const old = prev.players.find((x) => x.id === p.id);
+    if (!old || old.chips == null || p.chips == null || old.chips === p.chips) continue;
+    const el = p.id === s.you ? $('myChips') : document.querySelector(`.opp[data-pid="${p.id}"] .opp-chips`);
+    if (!el) continue;
+    const seat = el.getBoundingClientRect();
+    const delta = p.chips - old.chips;
+    const cols = Chips.chipColumns(Math.abs(delta));
+    const flying = cols.flatMap((c) => Array(c.count).fill(c.value)).slice(0, 8);
+    flying.forEach((value, i) => {
+      fly(chipEl(value), delta < 0 ? seat : pot, delta < 0 ? pot : seat, { delay: i * 70, startScale: 1.2 });
+    });
+  }
+}
+
 // Annuncio grande di chi perde il turno, più un timbro su ciascuno di loro
 let skipTimer = null;
 function announceSkip(g, s) {
@@ -1048,7 +1097,12 @@ function renderOpponents(s, g) {
     if (p.chips != null) {
       const chips = document.createElement('div');
       chips.className = 'opp-chips' + (p.chips === 0 ? ' broke' : '');
-      chips.textContent = `🪙 ${p.chips}`;
+      const pile = document.createElement('div');
+      pile.className = 'chip-pile small';
+      fillChipPile(pile, p.chips);
+      const n = document.createElement('b');
+      n.textContent = p.chips;
+      chips.append(pile, n);
       d.append(chips);
     }
     if (p.saidUno) {

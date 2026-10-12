@@ -105,7 +105,7 @@
       </div>
       <div class="direction" id="direction">⟳</div>
       <div id="potBox" class="pot hidden" title="Il piatto: lo vince chi finisce le carte">
-        <div class="pot-chips"><i></i><i></i><i></i></div>
+        <div id="potPile" class="chip-pile big"></div>
         <b id="potAmount"></b>
         <span>piatto</span>
       </div>
@@ -200,6 +200,7 @@
   <div id="toast" class="toast hidden"></div>
 
   <script src="/socket.io/socket.io.js"></script>
+  <script src="chips.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
