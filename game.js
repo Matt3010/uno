@@ -946,4 +946,4 @@ function describe(f, chosenColor) {
   return `${valueName(f.value)} ${colorName(f.color)}`;
 }
 
-module.exports = { Game, GameError, MODES, COLORS, DARK_COLORS, createDeck, createFlipDeck, createNoMercyDeck };
+module.exports = { Game, GameError, MODES, COLORS, DARK_COLORS, DRAW_VALUE, STACKABLE, createDeck, createFlipDeck, createNoMercyDeck };

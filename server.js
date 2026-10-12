@@ -6,6 +6,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const { Game, GameError, MODES } = require('./game');
+const bots = require('./bot');
 
 const PORT = process.env.PORT || 3000;
 const MAX_PLAYERS = 10;
@@ -14,6 +15,8 @@ const TURN_TIMES = [0, 15, 30, 60]; // secondi per turno (0 = senza timer)
 const DEFAULT_TURN_TIME = 30;
 // durata di un "secondo" del timer: si può accorciare solo per i test automatici
 const MS_PER_SECOND = Number(process.env.TURN_MS_PER_SECOND) || 1000;
+// velocità dei computer (solo i test automatici la cambiano)
+const BOT_DELAY_SCALE = Number(process.env.BOT_DELAY_SCALE) || 1;
 
 const app = express();
 const server = http.createServer(app);
@@ -73,8 +76,98 @@ function armTurnTimer(room) {
   }, ms);
 }
 
+// --- Giocatori computer ---
+const BOT_LINES = {
+  win: ['Evvai! 🎉', 'GG 😎', 'Facile facile 😏', 'Sììì! 🏆'],
+  ouch: ['Ma dai! 😤', 'Nooo 😩', 'Questa me la segno…', 'Ma perché a me?! 😭'],
+  caught: ['Beccato! 😏', 'UNO non l\'hai detto 😂', 'Occhio! 👀'],
+};
+
+function botSay(room, m, kind, chance = 1) {
+  if (Math.random() > chance) return;
+  const lines = BOT_LINES[kind];
+  const text = lines[Math.floor(Math.random() * lines.length)];
+  // risponde dopo un attimo, come una persona che scrive
+  setTimeout(() => {
+    if (rooms.get(room.code) === room) io.to(room.code).emit('chat', { name: m.name, text });
+  }, bots.between([700, 1800]) * BOT_DELAY_SCALE);
+}
+
+function clearBotTimers(room) {
+  clearTimeout(room.botHandle);
+  (room.unoHandles || []).forEach(clearTimeout);
+  room.botHandle = null;
+  room.botKey = null;
+  room.unoHandles = [];
+  room.unoKey = null;
+}
+
+// Fa muovere il computer di turno (una mossa per volta, con i suoi tempi)
+function scheduleBots(room) {
+  const g = room.game;
+  if (!g || g.winner || !g.players.length) return clearBotTimers(room);
+  const cur = room.members.get(g.current().id);
+  if (cur && cur.bot) {
+    const key = turnKey(g);
+    if (key !== room.botKey) {
+      room.botKey = key;
+      clearTimeout(room.botHandle);
+      const L = bots.LEVELS[cur.level];
+      const delay = (g.hasDrawn ? bots.between([600, 1200]) : bots.between(L.think)) * BOT_DELAY_SCALE;
+      room.botHandle = setTimeout(() => {
+        if (room.game !== g || g.winner || turnKey(g) !== key) return;
+        const before = g.current().hand.length;
+        try {
+          const action = bots.chooseAction(g, cur.id, cur.level);
+          if (action) bots.applyAction(g, cur.id, action, cur.level);
+          const me = g.players.find((p) => p.id === cur.id);
+          if (me && me.hand.length - before >= 4) botSay(room, cur, 'ouch', 0.4);
+        } catch (e) {
+          console.error(e);
+          try { g.autoPlay(); } catch (e2) { console.error(e2); }
+        }
+        applyWinner(room);
+        if (g.winner && g.winner.id === cur.id) botSay(room, cur, 'win', 0.8);
+        broadcast(room);
+      }, delay);
+    }
+  }
+
+  // UNO: un computer distratto può dirlo in ritardo, gli altri computer possono beccare chi non l'ha detto
+  const unoKey = g.unoVulnerable ? `${g.unoVulnerable}|${g.discard.length}` : null;
+  if (unoKey === room.unoKey) return;
+  (room.unoHandles || []).forEach(clearTimeout);
+  room.unoHandles = [];
+  room.unoKey = unoKey;
+  if (!unoKey) return;
+  const target = g.unoVulnerable;
+  const still = () => room.game === g && !g.winner && g.unoVulnerable === target;
+  const tm = room.members.get(target);
+  if (tm && tm.bot && Math.random() < bots.LEVELS[tm.level].lateUno) {
+    room.unoHandles.push(setTimeout(() => {
+      if (!still()) return;
+      g.sayUno(target);
+      broadcast(room);
+    }, bots.between([900, 2600]) * BOT_DELAY_SCALE));
+  }
+  for (const m of room.members.values()) {
+    if (!m.bot || m.id === target || !g.players.some((p) => p.id === m.id)) continue;
+    if (Math.random() >= bots.LEVELS[m.level].catchChance) continue;
+    room.unoHandles.push(setTimeout(() => {
+      if (!still()) return;
+      try {
+        g.catchUno(m.id, target);
+        botSay(room, m, 'caught', 0.5);
+      } catch (e) { /* troppo tardi */ }
+      applyWinner(room);
+      broadcast(room);
+    }, bots.between([800, 2800]) * BOT_DELAY_SCALE));
+  }
+}
+
 function broadcast(room) {
   armTurnTimer(room);
+  scheduleBots(room);
   const turnRemaining = room.timerDeadline ? Math.max(0, room.timerDeadline - Date.now()) : null;
   for (const m of room.members.values()) {
     if (!m.connected || !m.socketId) continue;
@@ -93,7 +186,10 @@ function broadcast(room) {
         name: x.name,
         connected: x.connected,
         score: x.score,
+        bot: !!x.bot,
+        level: x.bot ? bots.LEVELS[x.level].name : null,
       })),
+      botLevels: Object.fromEntries(Object.entries(bots.LEVELS).map(([k, v]) => [k, v.name])),
       game,
       mode: room.mode,
       modes: Object.fromEntries(Object.entries(MODES).map(([k, v]) => [k, v.name])),
@@ -112,13 +208,16 @@ function removeMember(room, playerId) {
   clearTimeout(m.timer);
   room.members.delete(playerId);
   if (room.game) room.game.removePlayer(playerId);
-  if (room.members.size === 0) {
+  const humans = [...room.members.values()].filter((x) => !x.bot);
+  if (humans.length === 0) {
+    // senza persone vere la stanza si chiude (anche se ci sono computer)
     clearTurnTimer(room);
+    clearBotTimers(room);
     rooms.delete(room.code);
     return;
   }
   if (room.hostId === playerId) {
-    const next = [...room.members.values()].find((x) => x.connected) || room.members.values().next().value;
+    const next = humans.find((x) => x.connected) || humans[0];
     room.hostId = next.id;
   }
   broadcast(room);
@@ -225,6 +324,17 @@ io.on('connection', (socket) => {
     room.matchWinner = null;
     room.game = null;
     for (const m of room.members.values()) m.score = startScore(room);
+    broadcast(room);
+  });
+
+  // L'host aggiunge un giocatore computer
+  socket.on('addBot', ({ level } = {}) => {
+    if (!room || room.hostId !== playerId || !bots.LEVELS[level]) return;
+    if (room.game && !room.game.winner) return fail('Aspetta la fine della mano per aggiungere computer');
+    if (room.members.size >= MAX_PLAYERS) return fail('Stanza piena');
+    const id = `bot-${crypto.randomUUID()}`;
+    const name = bots.pickName([...room.members.values()].map((m) => m.name));
+    room.members.set(id, { id, name, bot: true, level, socketId: null, connected: true, score: startScore(room), timer: null });
     broadcast(room);
   });
 

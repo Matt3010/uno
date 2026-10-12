@@ -256,8 +256,8 @@ input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(249, 200, 
   display: flex;
   align-items: center;
   gap: 10px;
-  animation: popIn 0.25s ease-out both;
 }
+.members li.new { animation: popIn 0.25s ease-out both; }
 .members li .who { flex: 1; text-align: left; }
 .members .tag { font-size: 12px; color: var(--muted); }
 .kick { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 16px; }
@@ -1051,3 +1051,17 @@ html.dark-side .modal-box { background: linear-gradient(160deg, #3d2659, #1c1029
 .timer-ring.urgent { --ring: var(--red); animation: pulse 0.5s ease-in-out infinite alternate; }
 .opp .timer-ring { position: absolute; top: -12px; left: -12px; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4); }
 html.dark-side .timer-ring { background: radial-gradient(closest-side, #241536 72%, transparent 74% 100%), conic-gradient(var(--ring) calc(var(--p) * 360deg), rgba(255, 255, 255, 0.15) 0); }
+
+/* --- Giocatori computer --- */
+.bot-row { display: flex; gap: 8px; align-items: center; justify-content: center; flex-wrap: wrap; }
+.bot-row select {
+  font: inherit;
+  font-weight: 700;
+  font-size: 14px;
+  padding: 7px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--panel-border);
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--text);
+}
+.bot-row select option { color: #222; }

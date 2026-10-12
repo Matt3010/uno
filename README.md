@@ -7,6 +7,8 @@ Una copia di UNO giocabile online con gli amici, direttamente dal browser (anche
 - Quattro modalità: **UNO Classico**, **UNO Flip**, **UNO Show 'Em No Mercy** e **UNO Casinò**
 - Pulsante **UNO!** e possibilità di "beccare" chi se lo dimentica (+2 carte)
 - Punteggio cumulativo tra le mani, chat, riconnessione automatica se cade la linea
+- **Giocatori computer** da aggiungere insieme agli amici (Facile, Normale, Difficile): pensano qualche
+  secondo, dicono UNO (a volte se lo dimenticano), beccano chi non lo dice e scrivono in chat
 - **Timer per turno** (Off / 15 / 30 / 60 secondi, scelto dall'host): allo scadere il gioco muove da solo
   (pesca e passa; nelle scelte accetta, sceglie il colore più presente in mano o scambia con chi ha meno carte)
 - Aiuto nel gioco: pulsante **❓ Regole** con le carte spiegate, suggerimenti su cosa fare a ogni turno
@@ -125,4 +127,5 @@ npm test
 
 - `game.js` – logica delle regole (indipendente dal server)
 - `server.js` – server Express + Socket.IO, gestione stanze
+- `bot.js` – giocatori computer (scelta della mossa per livello)
 - `public/` – client web (HTML/CSS/JS senza build)

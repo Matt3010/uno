@@ -23,6 +23,7 @@ let state = null;
 let pendingWildCard = null; // carta Jolly selezionata in attesa del colore
 let colorPickerMode = null; // 'play' | 'pending'
 let lastGame = null; // stato precedente, per animare i cambiamenti
+const seenMembers = new Set(); // chi è già comparso nella sala d'attesa (animato solo all'ingresso)
 let timerDeadline = null; // fine del turno corrente (orologio locale)
 let timerTotal = 0;
 let timerBuzzed = false;
@@ -82,6 +83,7 @@ $('joinBtn').onclick = () => {
 };
 $('codeInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('joinBtn').click(); });
 $('startBtn').onclick = () => socket.emit('start');
+$('addBotBtn').onclick = () => socket.emit('addBot', { level: $('botLevel').value });
 $('nextRoundBtn').onclick = () => socket.emit('start');
 // torna in sala d'attesa, dove l'host può scegliere un'altra modalità
 $('changeModeBtn').onclick = () => socket.emit('lobby');
@@ -469,12 +471,18 @@ function renderLobby(s, isHost) {
   list.innerHTML = '';
   for (const m of s.members) {
     const li = document.createElement('li');
+    if (!seenMembers.has(m.id)) {
+      seenMembers.add(m.id);
+      li.className = 'new';
+    }
     const name = document.createElement('span');
     name.className = 'who';
     name.textContent = m.name + (m.id === s.you ? ' (tu)' : '');
     const tag = document.createElement('span');
     tag.className = 'tag';
-    tag.textContent = (m.id === s.hostId ? '👑 host' : '') + (m.connected ? '' : ' offline');
+    tag.textContent = m.bot
+      ? `🤖 computer · ${m.level}`
+      : (m.id === s.hostId ? '👑 host' : '') + (m.connected ? '' : ' offline');
     li.append(avatarEl(m.name), name, tag);
     if (isHost && m.id !== s.you) {
       const k = document.createElement('button');
@@ -486,9 +494,15 @@ function renderLobby(s, isHost) {
     }
     list.append(li);
   }
+  $('botRow').classList.toggle('hidden', !isHost);
+  const sel = $('botLevel');
+  if (!sel.options.length) {
+    for (const [k, v] of Object.entries(s.botLevels)) sel.add(new Option(`Livello: ${v}`, k, k === 'normal', k === 'normal'));
+  }
+  $('addBotBtn').disabled = s.members.length >= 10;
   $('startBtn').classList.toggle('hidden', !isHost);
   $('startBtn').disabled = s.members.length < 2;
-  $('startBtn').textContent = s.members.length < 2 ? 'Servono almeno 2 giocatori' : 'Inizia partita';
+  $('startBtn').textContent = s.members.length < 2 ? 'Servono almeno 2 giocatori: invita un amico o aggiungi un computer' : 'Inizia partita';
   $('waitHost').classList.toggle('hidden', isHost);
 }
 
@@ -999,7 +1013,8 @@ function renderOpponents(s, g) {
     name.className = 'head';
     const nameText = document.createElement('span');
     nameText.className = 'name';
-    nameText.textContent = p.name + (member && !member.connected ? ' 📴' : '');
+    nameText.textContent = p.name + (member && !member.connected ? ' 📴' : '') + (member && member.bot ? ' 🤖' : '');
+    if (member && member.bot) nameText.title = `Computer (${member.level})`;
     name.append(avatarEl(p.name), nameText);
     const minis = document.createElement('div');
     minis.className = 'mini-cards';
@@ -1081,7 +1096,7 @@ function renderRoundEnd(s, g, isHost) {
   for (const m of [...s.members].sort((a, b) => b.score - a.score)) {
     const tr = document.createElement('tr');
     const a = document.createElement('td');
-    a.textContent = m.name;
+    a.textContent = m.name + (m.bot ? ' 🤖' : '');
     const b = document.createElement('td');
     b.textContent = `${m.score} ${unit}`;
     tr.append(a, b);

@@ -110,3 +110,34 @@ test('Timer: allo scadere il gioco fa la mossa al posto del giocatore', async (t
   const who = first.players.find((p) => p.id === first.turnId).name;
   assert.ok(after.game.log.includes(`⏱ Tempo scaduto per ${who}`));
 });
+
+test('Computer: si aggiungono dalla sala d\'attesa e giocano una mano intera', async (t) => {
+  const srv = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], {
+    env: { ...process.env, PORT: 0, TURN_MS_PER_SECOND: 20, BOT_DELAY_SCALE: 0.01 },
+  });
+  t.after(() => srv.kill());
+  const line = await new Promise((res) => srv.stdout.once('data', (d) => res(String(d))));
+  const url = `http://localhost:${line.match(/:(\d+)/)[1]}`;
+  const a = io(url, { transports: ['websocket'] });
+  t.after(() => a.close());
+
+  a.emit('create', { name: 'Anna' });
+  await once(a, 'joined');
+  const withBots = waitState(a, (s) => s.members.length === 3);
+  a.emit('addBot', { level: 'normal' });
+  a.emit('addBot', { level: 'hard' });
+  const lobby = await withBots;
+  const botsIn = lobby.members.filter((m) => m.bot);
+  assert.strictEqual(botsIn.length, 2);
+  assert.ok(botsIn.every((m) => m.name && m.name !== 'Anna'));
+  assert.deepStrictEqual(botsIn.map((m) => m.level).sort(), ['Difficile', 'Normale']);
+
+  // Anna non tocca niente: col timer brevissimo muove il gioco per lei, i computer giocano da soli
+  const timer = waitState(a, (s) => s.turnTime === 15);
+  a.emit('timer', 15);
+  await timer;
+  a.emit('start');
+  const end = await waitState(a, (s) => s.game && s.game.winner);
+  assert.ok(end.game.winner.name);
+  assert.ok(end.game.log.some((l) => botsIn.some((b) => l.startsWith(`${b.name} gioca`))));
+});
