@@ -235,6 +235,62 @@ const HOUSE_RULE_HELP = {
   drawUntil: 'Pesca finché puoi giocare: se non hai carte giocabili peschi finché non ne esce una, poi puoi giocarla o tenerla.',
 };
 
+// Come si presentano le regole della casa nella sala d'attesa
+const HOUSE_RULE_UI = {
+  stack: {
+    title: 'Accumulo',
+    text: '+2 su +2, +4 su +2 o +4: chi non risponde pesca tutto',
+    art: [{ color: 'green', value: 'draw2' }, { color: 'blue', value: 'draw2' }, { color: 'wild', value: 'wild4' }],
+  },
+  sevenZero: {
+    title: '7-0',
+    text: 'Col 7 scambi la mano con chi vuoi, con lo 0 tutti la passano',
+    art: [{ color: 'yellow', value: '7' }, { color: 'red', value: '0' }],
+  },
+  drawUntil: {
+    title: 'Pesca finché puoi',
+    text: 'Senza carte buone peschi finché non ne esce una giocabile',
+    art: [null, null, { color: 'red', value: '5' }],
+  },
+};
+
+function renderHouseRules(s, isHost) {
+  const box = $('houseRules');
+  box.innerHTML = '';
+  const noMercy = s.mode === 'nomercy';
+  $('houseHint').textContent = noMercy ? '' : isHost ? 'Facoltative: tocca per accenderle' : "Le sceglie l'host";
+  if (noMercy) {
+    const p = document.createElement('p');
+    p.className = 'muted house-note';
+    p.textContent = 'Nel No Mercy valgono già tutte.';
+    box.append(p);
+    return;
+  }
+  for (const key of Object.keys(s.houseRuleNames)) {
+    const ui = HOUSE_RULE_UI[key];
+    const on = !!s.houseRules[key];
+    const b = document.createElement('button');
+    b.className = 'house' + (on ? ' on' : '');
+    b.disabled = !isHost;
+    b.setAttribute('aria-pressed', String(on));
+    const art = document.createElement('div');
+    art.className = 'house-art';
+    for (const c of ui.art) art.append(c ? cardEl(c) : backEl());
+    const text = document.createElement('div');
+    text.className = 'house-text';
+    const t = document.createElement('b');
+    t.textContent = ui.title;
+    const d = document.createElement('span');
+    d.textContent = ui.text;
+    text.append(t, d);
+    const sw = document.createElement('span');
+    sw.className = 'switch';
+    b.append(art, text, sw);
+    b.onclick = () => socket.emit('rules', { key, on: !on });
+    box.append(b);
+  }
+}
+
 const BASIC_RULES = [
   'Al tuo turno gioca una carta dello <b>stesso colore</b> o con lo <b>stesso numero/simbolo</b> di quella in cima alla pila. Le carte che puoi giocare sono <b>evidenziate</b>.',
   'Se non hai carte giocabili (o non vuoi giocarle) <b>tocca il mazzo</b> per pescare.',
@@ -471,25 +527,7 @@ function renderLobby(s, isHost) {
     b.onclick = () => socket.emit('timer', t);
     tc.append(b);
   }
-  // regole della casa: l'host le accende o spegne (il No Mercy le ha già tutte)
-  const hr = $('houseRules');
-  hr.innerHTML = '';
-  if (s.mode === 'nomercy') {
-    const p = document.createElement('p');
-    p.className = 'muted';
-    p.textContent = 'Nel No Mercy valgono già tutte';
-    hr.append(p);
-  } else {
-    for (const [key, label] of Object.entries(s.houseRuleNames)) {
-      const b = document.createElement('button');
-      const on = s.houseRules[key];
-      b.className = on ? 'on' : '';
-      b.textContent = `${on ? '✓ ' : ''}${label}`;
-      b.disabled = !isHost;
-      b.onclick = () => socket.emit('rules', { key, on: !on });
-      hr.append(b);
-    }
-  }
+  renderHouseRules(s, isHost);
   const list = $('memberList');
   list.innerHTML = '';
   for (const m of s.members) {
@@ -547,6 +585,14 @@ function render() {
   document.documentElement.classList.toggle('dark-side', g.side === 'dark');
   $('tableCode').textContent = s.code;
   $('modeName').textContent = s.modes[g.mode];
+  // al tavolo si vede quali regole della casa sono accese
+  const houseOn = Object.keys(HOUSE_RULE_UI).filter((k) => g.rules && g.rules[k]);
+  if (houseOn.length) {
+    const tags = document.createElement('span');
+    tags.className = 'house-tags';
+    tags.textContent = `· 🏠 ${houseOn.map((k) => HOUSE_RULE_UI[k].title).join(', ')}`;
+    $('modeName').append(tags);
+  }
   const myTurn = g.turnId === s.you && !g.winner;
   const pend = g.pending;
   const myPending = myTurn && pend ? pend.type : null;

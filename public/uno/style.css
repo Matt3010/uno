@@ -967,24 +967,43 @@ html.dark-side .modal-box { background: linear-gradient(160deg, #3d2659, #1c1029
 }
 @media (max-width: 760px) { .top-actions .lbl { display: none; } }
 
-/* --- Regole della casa --- */
-.house-rules { display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; }
-.house-list { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-.house-list button {
+/* --- Regole della casa: schede come le modalità, con interruttore --- */
+.house-rules { width: 100%; max-width: 880px; display: flex; flex-direction: column; gap: 8px; }
+.house-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 0 4px; }
+.house-head b { font-family: var(--font-display); font-weight: 400; font-size: 18px; letter-spacing: 0.5px; }
+.house-head .muted { font-size: 13px; }
+.house-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.house {
   font: inherit;
-  font-size: 13px;
-  font-weight: 700;
-  border: 1px solid var(--panel-border);
-  background: rgba(0, 0, 0, 0.3);
-  color: var(--muted);
-  padding: 7px 12px;
-  border-radius: 999px;
+  text-align: left;
+  background: var(--panel);
+  color: var(--text);
+  border: 2px solid var(--panel-border);
+  border-radius: 14px;
+  padding: 10px 12px;
   cursor: pointer;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  transition: border-color 0.15s, box-shadow 0.15s, opacity 0.15s;
 }
-.house-list button.on { background: var(--yellow); color: var(--ink); border-color: transparent; }
-.house-list button:disabled { cursor: default; }
-.house-list button:disabled:not(.on) { opacity: 0.6; }
-.house-list .muted { margin: 0; }
+.house.on { border-color: var(--yellow); box-shadow: 0 0 0 1px var(--yellow), 0 8px 22px rgba(249, 200, 14, 0.18); }
+.house:disabled { cursor: default; }
+.house:disabled:not(.on) { opacity: 0.55; }
+.house-art { display: flex; align-items: center; width: 62px; }
+.house-art .card { --card-w: 28px; --card-h: 42px; margin-right: -12px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4); }
+.house-art .card:nth-child(1) { transform: rotate(-10deg); }
+.house-art .card:nth-child(3) { transform: rotate(10deg); }
+.house-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.house-text b { font-size: 15px; }
+.house-text span { font-size: 12.5px; color: var(--muted); line-height: 1.3; }
+.switch { width: 38px; height: 22px; border-radius: 999px; background: rgba(255, 255, 255, 0.18); position: relative; flex-shrink: 0; transition: background 0.15s; }
+.switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform 0.15s; }
+.house.on .switch { background: var(--yellow); }
+.house.on .switch::after { transform: translateX(16px); background: var(--ink); }
+.house-note { grid-column: 1 / -1; margin: 0; text-align: center; }
+.house-tags { margin-left: 6px; font-size: 12px; }
 
 /* --- Timer del turno --- */
 .timer-choice { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center; color: var(--muted); font-size: 14px; }
