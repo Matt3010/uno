@@ -660,11 +660,13 @@ function render() {
   renderRoundEnd(s, g, isHost);
   if (prevG) animateChanges(prevG, g, s, before);
   if (prevG && !reduceMotion) animateChips(prevG, g, s);
-  if (prevG && g.skip && (!prevG.skip || prevG.skip.seq !== g.skip.seq)) announceSkip(g, s);
+  // a ogni nuova mano i contatori ripartono da capo: lì conta qualunque salto o lancio
+  const newHand = prevG && prevG.winner && !g.winner;
+  if (prevG && g.skip && (newHand || !prevG.skip || prevG.skip.seq !== g.skip.seq)) announceSkip(g, s);
   // Casinò: slot machine o dadi appena giocati
   $('casinoTable').classList.toggle('hidden', g.mode !== 'gambling');
   $('center').classList.toggle('casino', g.mode === 'gambling');
-  if (g.event && (!prevG || !prevG.event || prevG.event.seq !== g.event.seq)) {
+  if (g.event && (!prevG || newHand || !prevG.event || prevG.event.seq !== g.event.seq)) {
     if (prevG) showCasinoEvent(g);
     else showCasinoStatic(g);
   }

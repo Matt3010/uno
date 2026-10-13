@@ -141,3 +141,28 @@ test('Computer: si aggiungono dalla sala d\'attesa e giocano una mano intera', a
   assert.ok(end.game.winner.name);
   assert.ok(end.game.log.some((l) => botsIn.some((b) => l.startsWith(`${b.name} gioca`))));
 });
+
+test('chi viene rimosso dalla stanza può crearne una nuova', async (t) => {
+  const srv = spawn(process.execPath, [path.join(__dirname, '..', '..', 'server.js')], { env: { ...process.env, PORT: 0 } });
+  t.after(() => srv.kill());
+  const line = await new Promise((res) => srv.stdout.once('data', (d) => res(String(d))));
+  const url = `http://localhost:${line.match(/:(\d+)/)[1]}`;
+  const a = io(url, { transports: ['websocket'] });
+  const b = io(url, { transports: ['websocket'] });
+  t.after(() => { a.close(); b.close(); });
+
+  a.emit('create', { name: 'Anna' });
+  const { code } = await once(a, 'joined');
+  const both = waitState(a, (s) => s.members.length === 2);
+  b.emit('join', { code, name: 'Bruno' });
+  const { playerId: bruno } = await once(b, 'joined');
+  await both;
+  const kicked = once(b, 'kicked');
+  a.emit('kick', { targetId: bruno });
+  await kicked;
+
+  b.emit('create', { name: 'Bruno' });
+  const joined = await Promise.race([once(b, 'joined'), new Promise((res) => setTimeout(() => res(null), 1500))]);
+  assert.ok(joined, 'nessuna nuova stanza creata');
+  assert.notStrictEqual(joined.code, code);
+});

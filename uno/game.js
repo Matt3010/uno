@@ -293,7 +293,7 @@ class Game {
       player.hand.push(c);
       drawn++;
     }
-    player.saidUno = false;
+    this.drewCards(player, drawn);
     return drawn;
   }
 
@@ -308,8 +308,14 @@ class Game {
       drawn++;
       if (this.face(c).color === color) break;
     }
-    player.saidUno = false;
+    this.drewCards(player, drawn);
     return drawn;
+  }
+
+  // Chi pesca non ha più una carta sola: niente UNO da dire né da beccare
+  drewCards(player, n) {
+    player.saidUno = false;
+    if (n && this.unoVulnerable === player.id) this.unoVulnerable = null;
   }
 
   nextIndex(steps = 1) {
@@ -851,7 +857,8 @@ class Game {
       if (this.direction === -1) this.turn--;
       this.hasDrawn = false;
       this.drawnCardId = null;
-      this.pending = null;
+      // se doveva scegliere il colore, lo sceglie (e poi gioca) il giocatore dopo
+      this.pending = this.pending && this.pending.type === 'color' ? { type: 'color', after: 0 } : null;
     }
     this.turn = ((this.turn % n) + n) % n;
     if (!this.winner && n === 1) this.finish(this.players[0]);

@@ -227,6 +227,11 @@ module.exports = function setupUno(io) {
     let room = null;
     let playerId = null;
 
+    // ancora dentro la stanza? (chi viene rimosso dall'host o per assenza ne è fuori)
+    function inRoom() {
+      return !!room && rooms.get(room.code) === room && room.members.has(playerId);
+    }
+
     function attach(r, member) {
       room = r;
       playerId = member.id;
@@ -243,7 +248,7 @@ module.exports = function setupUno(io) {
     }
 
     socket.on('create', ({ name } = {}) => {
-      if (room) return;
+      if (inRoom()) return;
       const code = newRoomCode();
       const id = crypto.randomUUID();
       const r = { code, hostId: id, members: new Map(), game: null, dealer: -1, matchWinner: null, mode: 'classic', turnTime: DEFAULT_TURN_TIME };
@@ -253,7 +258,7 @@ module.exports = function setupUno(io) {
     });
 
     socket.on('join', ({ code, name, playerId: existingId } = {}) => {
-      if (room) return;
+      if (inRoom()) return;
       const r = rooms.get(String(code || '').toUpperCase().trim());
       if (!r) return fail('Stanza non trovata');
 

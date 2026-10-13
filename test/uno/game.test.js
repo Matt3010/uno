@@ -703,3 +703,25 @@ test('Casinò: dadi da 10 in su annunciano il salto del successivo', () => {
   g.play('a', d.id);
   assert.deepStrictEqual(g.viewFor('a').skip.ids, ['b']);
 });
+
+test('Casinò: chi pesca dai dadi non può più essere beccato senza UNO', () => {
+  const roll = (a, b) => [pick(a - 1, 6), pick(b - 1, 6)];
+  const d = c('red', 'dice');
+  const g = casinoSetup(three(), [[d, c('red', '1')], [c('red', '2')], [c('red', '3')]], c('red', '5'), roll(1, 2));
+  g.play('a', d.id); // resta con 1 carta senza UNO, poi i dadi gliene fanno pescare 2
+  assert.strictEqual(g.players[0].hand.length, 3);
+  assert.throws(() => g.catchUno('b', 'a'), /Troppo tardi/);
+  assert.strictEqual(g.players[0].hand.length, 3);
+});
+
+test('se esce chi doveva scegliere il colore, lo sceglie il giocatore dopo', () => {
+  const g = setup(three(), [[c('red', '1')], [c('blue', '2')], [c('green', '3')]], c('wild', 'wild'));
+  g.currentColor = null;
+  g.pending = { type: 'color', after: 0 };
+  g.removePlayer('a');
+  assert.strictEqual(g.current().id, 'b');
+  assert.strictEqual(g.pending && g.pending.type, 'color');
+  g.chooseColor('b', 'blue');
+  assert.strictEqual(g.currentColor, 'blue');
+  assert.strictEqual(g.current().id, 'b'); // poi gioca lui
+});
