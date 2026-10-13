@@ -229,6 +229,12 @@ const RULE_TEXT = {
   ],
 };
 
+const HOUSE_RULE_HELP = {
+  stack: "Accumulo: a chi riceve un +2 o un +4 basta rispondere con una carta pesca uguale o più forte, e il totale passa al successivo. Chi non può pesca tutto. Con l'accumulo il Jolly +4 non si sfida.",
+  sevenZero: '7-0: giocando un 7 scambi la mano con chi vuoi, giocando uno 0 tutti passano la mano al successivo.',
+  drawUntil: 'Pesca finché puoi giocare: se non hai carte giocabili peschi finché non ne esce una, poi puoi giocarla o tenerla.',
+};
+
 const BASIC_RULES = [
   'Al tuo turno gioca una carta dello <b>stesso colore</b> o con lo <b>stesso numero/simbolo</b> di quella in cima alla pila. Le carte che puoi giocare sono <b>evidenziate</b>.',
   'Se non hai carte giocabili (o non vuoi giocarle) <b>tocca il mazzo</b> per pescare.',
@@ -267,6 +273,19 @@ function showRules(mode) {
     ul2.append(li);
   }
   body.append(ul2);
+  // regole della casa accese per questa mano (o per la prossima)
+  const rules = state.game ? state.game.rules : state.houseRules;
+  const active = mode === 'nomercy' ? [] : Object.keys(state.houseRuleNames).filter((k) => rules && rules[k]);
+  if (active.length) {
+    section('Regole della casa');
+    const ul3 = document.createElement('ul');
+    for (const k of active) {
+      const li = document.createElement('li');
+      li.textContent = HOUSE_RULE_HELP[k];
+      ul3.append(li);
+    }
+    body.append(ul3);
+  }
   $('rulesBox').classList.remove('hidden');
   body.scrollTop = 0;
   store(`uno-rules-${mode}`, '1');
@@ -451,6 +470,25 @@ function renderLobby(s, isHost) {
     b.disabled = !isHost;
     b.onclick = () => socket.emit('timer', t);
     tc.append(b);
+  }
+  // regole della casa: l'host le accende o spegne (il No Mercy le ha già tutte)
+  const hr = $('houseRules');
+  hr.innerHTML = '';
+  if (s.mode === 'nomercy') {
+    const p = document.createElement('p');
+    p.className = 'muted';
+    p.textContent = 'Nel No Mercy valgono già tutte';
+    hr.append(p);
+  } else {
+    for (const [key, label] of Object.entries(s.houseRuleNames)) {
+      const b = document.createElement('button');
+      const on = s.houseRules[key];
+      b.className = on ? 'on' : '';
+      b.textContent = `${on ? '✓ ' : ''}${label}`;
+      b.disabled = !isHost;
+      b.onclick = () => socket.emit('rules', { key, on: !on });
+      hr.append(b);
+    }
   }
   const list = $('memberList');
   list.innerHTML = '';
@@ -1011,7 +1049,7 @@ function animateChanges(prev, g, s, before) {
   }
 
   // Carte pescate: dal mazzo verso chi le prende (non per scambi di mano)
-  const handsMoved = prev.pending && prev.pending.type === 'swap' || (top && top.value === '0' && g.mode === 'nomercy' && top.id !== (prevTop && prevTop.id));
+  const handsMoved = prev.pending && prev.pending.type === 'swap' || (top && top.value === '0' && (g.mode === 'nomercy' || g.rules.sevenZero) && top.id !== (prevTop && prevTop.id));
   for (const p of g.players) {
     const old = prev.players.find((x) => x.id === p.id);
     if (!old) continue;

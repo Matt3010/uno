@@ -166,3 +166,35 @@ test('chi viene rimosso dalla stanza può crearne una nuova', async (t) => {
   assert.ok(joined, 'nessuna nuova stanza creata');
   assert.notStrictEqual(joined.code, code);
 });
+
+test('l\'host accende le regole della casa e valgono nella mano', async (t) => {
+  const srv = spawn(process.execPath, [path.join(__dirname, '..', '..', 'server.js')], { env: { ...process.env, PORT: 0 } });
+  t.after(() => srv.kill());
+  const line = await new Promise((res) => srv.stdout.once('data', (d) => res(String(d))));
+  const url = `http://localhost:${line.match(/:(\d+)/)[1]}`;
+  const a = io(url, { transports: ['websocket'] });
+  const b = io(url, { transports: ['websocket'] });
+  t.after(() => { a.close(); b.close(); });
+
+  a.emit('create', { name: 'Anna' });
+  const { code } = await once(a, 'joined');
+  const first = await waitState(a, () => true);
+  assert.deepStrictEqual(first.houseRules, { stack: false, sevenZero: false, drawUntil: false });
+  assert.ok(first.houseRuleNames.stack);
+
+  const both = waitState(a, (s) => s.members.length === 2);
+  b.emit('join', { code, name: 'Bruno' });
+  await once(b, 'joined');
+  await both;
+  // solo l'host può cambiarle
+  b.emit('rules', { key: 'drawUntil', on: true });
+  const on = waitState(a, (s) => s.houseRules.stack);
+  a.emit('rules', { key: 'stack', on: true });
+  const st = await on;
+  assert.strictEqual(st.houseRules.drawUntil, false);
+
+  const started = waitState(a, (s) => s.game);
+  a.emit('start');
+  const g = await started;
+  assert.deepStrictEqual(g.game.rules, { stack: true, sevenZero: false, drawUntil: false });
+});

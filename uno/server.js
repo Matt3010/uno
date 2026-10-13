@@ -1,7 +1,7 @@
 'use strict';
 
 const crypto = require('crypto');
-const { Game, GameError, MODES } = require('./game');
+const { Game, GameError, MODES, HOUSE_RULES } = require('./game');
 const bots = require('./bot');
 
 const MAX_PLAYERS = 10;
@@ -164,6 +164,8 @@ module.exports = function setupUno(io) {
         modes: Object.fromEntries(Object.entries(MODES).map(([k, v]) => [k, v.name])),
         targetScore: MODES[room.mode].target,
         matchWinner: room.matchWinner,
+        houseRules: room.houseRules,
+        houseRuleNames: HOUSE_RULES,
         turnTime: room.turnTime,
         turnTimes: TURN_TIMES,
         turnRemaining,
@@ -252,6 +254,7 @@ module.exports = function setupUno(io) {
       const code = newRoomCode();
       const id = crypto.randomUUID();
       const r = { code, hostId: id, members: new Map(), game: null, dealer: -1, matchWinner: null, mode: 'classic', turnTime: DEFAULT_TURN_TIME };
+      r.houseRules = Object.fromEntries(Object.keys(HOUSE_RULES).map((k) => [k, false]));
       r.members.set(id, { id, name: cleanName(name), socketId: null, connected: false, score: startScore(r), timer: null });
       rooms.set(code, r);
       attach(r, r.members.get(id));
@@ -286,7 +289,7 @@ module.exports = function setupUno(io) {
       // chi distribuisce ruota a ogni mano
       room.dealer = (room.dealer + 1) % players.length;
       const chips = Object.fromEntries(players.map((m) => [m.id, m.score]));
-      room.game = new Game(players, { dealer: room.dealer, mode: room.mode, chips });
+      room.game = new Game(players, { dealer: room.dealer, mode: room.mode, chips, rules: room.houseRules });
       broadcast(room);
     });
 
@@ -298,6 +301,14 @@ module.exports = function setupUno(io) {
       room.matchWinner = null;
       room.game = null;
       for (const m of room.members.values()) m.score = startScore(room);
+      broadcast(room);
+    });
+
+    // L'host accende o spegne una regola della casa (vale dalla mano dopo)
+    socket.on('rules', ({ key, on } = {}) => {
+      if (!room || room.hostId !== playerId || !(key in HOUSE_RULES)) return;
+      if (room.game && !room.game.winner) return fail("Le regole si cambiano tra una mano e l'altra");
+      room.houseRules = { ...room.houseRules, [key]: !!on };
       broadcast(room);
     });
 

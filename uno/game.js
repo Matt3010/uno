@@ -22,6 +22,14 @@ const DRAW_VALUE = { draw1: 1, draw2: 2, draw4: 4, draw5: 5, wild4: 4, wild2: 2,
 const CHALLENGEABLE = { wild4: 'fixed', wild2: 'fixed', wildcolor: 'untilColor' };
 // Carte che nel No Mercy si accumulano
 const STACKABLE = ['draw2', 'draw4', 'wildrev4', 'wild6', 'wild10'];
+// Con la regola della casa dell'accumulo, nelle altre modalità
+const HOUSE_STACKABLE = ['draw1', 'draw2', 'draw5', 'wild2', 'wild4'];
+// Regole della casa (il No Mercy le ha già tutte)
+const HOUSE_RULES = {
+  stack: 'Accumulo dei +2 e +4',
+  sevenZero: '7-0: col 7 scambi la mano, con lo 0 tutti la passano',
+  drawUntil: 'Pesca finché non trovi una carta giocabile',
+};
 
 function shuffle(arr) {
   for (let i = arr.length - 1; i > 0; i--) {
@@ -131,10 +139,11 @@ class GameError extends Error {}
  *   swap      – No Mercy: ha giocato un 7 e sceglie con chi scambiare la mano
  */
 class Game {
-  constructor(players, { dealer, mode = 'classic', chips = {}, rng = Math.random } = {}) {
+  constructor(players, { dealer, mode = 'classic', chips = {}, rules = {}, rng = Math.random } = {}) {
     if (players.length < 2) throw new GameError('Servono almeno 2 giocatori');
     if (!MODES[mode]) throw new GameError('Modalità sconosciuta');
     this.mode = mode;
+    this.rules = Object.fromEntries(Object.keys(HOUSE_RULES).map((k) => [k, mode !== 'nomercy' && !!rules[k]]));
     this.side = 'light'; // solo per Flip
     this.players = players.map((p) => ({ id: p.id, name: p.name, hand: [], saidUno: false }));
     this.deck = shuffle(DECKS[mode]());
@@ -196,6 +205,16 @@ class Game {
 
   get casino() {
     return this.mode === 'gambling';
+  }
+
+  // Carte pesca che si possono accumulare (No Mercy, o regola della casa)
+  stackable(value) {
+    if (this.noMercy) return STACKABLE.includes(value);
+    return this.rules.stack && HOUSE_STACKABLE.includes(value);
+  }
+
+  get sevenZero() {
+    return this.noMercy || this.rules.sevenZero;
   }
 
   // Toglie fino ad "amount" fiches a un giocatore e restituisce quante ne ha tolte
@@ -356,7 +375,7 @@ class Game {
     const f = this.face(card);
     if (this.pending) {
       // No Mercy: durante un accumulo si può solo rilanciare con una carta pesca di valore pari o superiore
-      return this.pending.type === 'stack' && STACKABLE.includes(f.value) && DRAW_VALUE[f.value] >= this.pending.min;
+      return this.pending.type === 'stack' && this.stackable(f.value) && DRAW_VALUE[f.value] >= this.pending.min;
     }
     if (this.hasDrawn && card.id !== this.drawnCardId) return false;
     if (f.color === 'wild') return true;
@@ -406,7 +425,7 @@ class Game {
     }
 
     if (player.hand.length === 0) {
-      this.lastCardPenalty(f);
+      this.lastCardPenalty(f, stackSoFar);
       this.finish(player);
       return;
     }
@@ -420,7 +439,7 @@ class Game {
     const twoPlayers = this.players.length === 2;
     const next = () => this.players[this.nextIndex()];
 
-    if (this.noMercy && STACKABLE.includes(f.value)) {
+    if (this.stackable(f.value)) {
       if (f.value === 'wildrev4' && !twoPlayers) {
         this.direction *= -1;
         this.addLog('Cambio di direzione');
@@ -500,7 +519,7 @@ class Game {
         this.addLog(`${this.current().name} sceglie un colore e pesca finché non esce`);
         break;
       case '7':
-        if (this.noMercy) {
+        if (this.sevenZero) {
           this.pending = { type: 'swap' };
           this.addLog(`${player.name} sceglie con chi scambiare la mano`);
           break;
@@ -508,7 +527,7 @@ class Game {
         this.advance(1);
         break;
       case '0':
-        if (this.noMercy) this.rotateHands();
+        if (this.sevenZero) this.rotateHands();
         this.advance(1);
         break;
       default:
@@ -517,12 +536,13 @@ class Game {
   }
 
   // Se l'ultima carta fa pescare, il successivo pesca comunque (conta nei punti)
-  lastCardPenalty(f) {
+  // (con l'accumulo pesca anche tutto quello accumulato prima)
+  lastCardPenalty(f, stackSoFar = 0) {
     if (this.noMercy) return;
     const victim = this.players[this.nextIndex()];
     let n = 0;
     if (f.value === 'wildcolor') n = this.drawUntilColor(victim, this.currentColor);
-    else if (DRAW_VALUE[f.value]) n = this.draw(victim, DRAW_VALUE[f.value]);
+    else if (DRAW_VALUE[f.value]) n = this.draw(victim, DRAW_VALUE[f.value] + stackSoFar);
     if (n) this.addLog(`${victim.name} pesca ${n} ${n === 1 ? 'carta' : 'carte'}`);
   }
 
@@ -656,6 +676,27 @@ class Game {
       return;
     }
 
+    if (this.rules.drawUntil) {
+      // regola della casa: si pesca finché non esce una carta giocabile (si può anche tenerla)
+      let n = 0;
+      let card = null;
+      for (let c = this.drawOne(); c; c = this.canPlay(player, c) ? null : this.drawOne()) {
+        player.hand.push(c);
+        n++;
+        if (this.canPlay(player, c)) card = c;
+      }
+      this.drewCards(player, n);
+      if (card) {
+        this.hasDrawn = true;
+        this.drawnCardId = card.id;
+        this.addLog(`${player.name} pesca ${n} ${n === 1 ? 'carta' : 'carte'}`);
+      } else {
+        this.addLog(`${player.name} pesca ${n} carte e passa: mazzo finito`);
+        this.advance(1);
+      }
+      return;
+    }
+
     const card = this.drawOne();
     if (!card) {
       this.addLog(`${player.name} non può pescare: mazzo vuoto`);
@@ -663,7 +704,7 @@ class Game {
       return;
     }
     player.hand.push(card);
-    player.saidUno = false;
+    this.drewCards(player, 1);
     this.hasDrawn = true;
     this.drawnCardId = card.id;
     if (this.canPlay(player, card)) {
@@ -902,6 +943,7 @@ class Game {
     const deckTop = this.deck[this.deck.length - 1];
     return {
       mode: this.mode,
+      rules: this.rules,
       side: this.side,
       colors: this.colors(),
       players: this.players.map((pl) => ({
@@ -965,4 +1007,4 @@ function describe(f, chosenColor) {
   return `${valueName(f.value)} ${colorName(f.color)}`;
 }
 
-module.exports = { Game, GameError, MODES, COLORS, DARK_COLORS, DRAW_VALUE, STACKABLE, createDeck, createFlipDeck, createNoMercyDeck };
+module.exports = { Game, GameError, MODES, HOUSE_RULES, COLORS, DARK_COLORS, DRAW_VALUE, STACKABLE, createDeck, createFlipDeck, createNoMercyDeck };

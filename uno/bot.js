@@ -3,7 +3,7 @@
 // Giocatori computer: decidono una mossa alla volta guardando la propria mano
 // e le informazioni pubbliche del tavolo (come farebbe una persona).
 
-const { DRAW_VALUE, STACKABLE } = require('./game');
+const { DRAW_VALUE } = require('./game');
 
 const BOT_NAMES = [
   'Giulia', 'Marco', 'Sofia', 'Luca', 'Chiara', 'Davide', 'Martina', 'Simone', 'Elena', 'Andrea',
@@ -76,7 +76,7 @@ function cardScore(game, me, card, level) {
       else score += 4;
     }
     if (f.value === 'discardall') score += 8 * ((counts[f.color] || 1) - 1);
-    if (f.value === '7' && game.noMercy) {
+    if (f.value === '7' && game.sevenZero) {
       const fewest = Math.min(...game.players.filter((p) => p.id !== me.id).map((p) => p.hand.length));
       score += fewest < me.hand.length - 1 ? 30 : -25;
     }
@@ -108,7 +108,7 @@ function chooseAction(game, botId, level = 'normal') {
         .filter((c) => game.canPlay(me, c))
         .sort((a, b) => DRAW_VALUE[game.face(a).value] - DRAW_VALUE[game.face(b).value]);
       const pick = level === 'easy' ? options[Math.floor(Math.random() * options.length)] : options[0];
-      if (pick && STACKABLE.includes(game.face(pick).value)) return playAction(game, me, pick);
+      if (pick && game.stackable(game.face(pick).value)) return playAction(game, me, pick);
       return { type: 'accept' };
     }
   }

@@ -967,6 +967,25 @@ html.dark-side .modal-box { background: linear-gradient(160deg, #3d2659, #1c1029
 }
 @media (max-width: 760px) { .top-actions .lbl { display: none; } }
 
+/* --- Regole della casa --- */
+.house-rules { display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; }
+.house-list { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.house-list button {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  border: 1px solid var(--panel-border);
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--muted);
+  padding: 7px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.house-list button.on { background: var(--yellow); color: var(--ink); border-color: transparent; }
+.house-list button:disabled { cursor: default; }
+.house-list button:disabled:not(.on) { opacity: 0.6; }
+.house-list .muted { margin: 0; }
+
 /* --- Timer del turno --- */
 .timer-choice { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center; color: var(--muted); font-size: 14px; }
 .segmented { display: inline-flex; background: rgba(0, 0, 0, 0.3); border-radius: 999px; padding: 3px; border: 1px solid var(--panel-border); }

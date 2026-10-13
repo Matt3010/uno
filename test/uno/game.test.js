@@ -725,3 +725,88 @@ test('se esce chi doveva scegliere il colore, lo sceglie il giocatore dopo', () 
   assert.strictEqual(g.currentColor, 'blue');
   assert.strictEqual(g.current().id, 'b'); // poi gioca lui
 });
+
+// --- Regole della casa ---
+function houseSetup(rules, players, hands, top, mode = 'classic') {
+  const g = new Game(players, { mode, rules });
+  g.turn = 0;
+  g.direction = 1;
+  g.pending = null;
+  g.hasDrawn = false;
+  g.players.forEach((p, i) => { p.hand = hands[i]; });
+  g.discard = [top];
+  g.currentColor = top.color;
+  g.skip = null;
+  g.log = [];
+  return g;
+}
+
+test('regola della casa: accumulo dei +2 e +4 nel Classico', () => {
+  const p2 = c('red', 'draw2');
+  const p2b = c('blue', 'draw2');
+  const w4 = c('wild', 'wild4');
+  const g = houseSetup({ stack: true }, three(), [[p2, c('red', '1')], [p2b, c('red', '2')], [w4, c('red', '3')]], c('red', '5'));
+  g.play('a', p2.id);
+  assert.strictEqual(g.pending.type, 'stack');
+  assert.strictEqual(g.current().id, 'b');
+  g.play('b', p2b.id); // +2 su +2
+  g.play('c', w4.id, 'green'); // +4 su +2
+  assert.strictEqual(g.pending.amount, 8);
+  assert.strictEqual(g.current().id, 'a');
+  g.accept('a');
+  assert.strictEqual(g.players[0].hand.length, 9);
+  assert.strictEqual(g.current().id, 'b');
+});
+
+test('senza la regola dell\'accumulo il +2 si pesca subito', () => {
+  const p2 = c('red', 'draw2');
+  const g = houseSetup({}, three(), [[p2, c('red', '1')], [c('blue', 'draw2')], [c('red', '3')]], c('red', '5'));
+  g.play('a', p2.id);
+  assert.strictEqual(g.pending, null);
+  assert.strictEqual(g.players[1].hand.length, 3);
+});
+
+test('regola della casa: un +2 sopra un +4 non si può', () => {
+  const w4 = c('wild', 'wild4');
+  const p2 = c('blue', 'draw2');
+  const g = houseSetup({ stack: true }, three(), [[w4, c('red', '1')], [p2, c('blue', '2')], [c('red', '3')]], c('red', '5'));
+  g.play('a', w4.id, 'blue');
+  assert.throws(() => g.play('b', p2.id), /Non puoi/);
+});
+
+test('regola della casa: chiudere con un +2 su un accumulo fa pescare tutto', () => {
+  const p2 = c('red', 'draw2');
+  const p2b = c('blue', 'draw2');
+  const g = houseSetup({ stack: true }, three(), [[p2, c('red', '1')], [p2b], [c('red', '3')]], c('red', '5'));
+  g.play('a', p2.id);
+  g.play('b', p2b.id); // ultima carta
+  assert.strictEqual(g.winner.id, 'b');
+  assert.strictEqual(g.players[2].hand.length, 5);
+});
+
+test('regola della casa 7-0: col 7 scambi la mano, con lo 0 tutti la passano', () => {
+  const s7 = c('red', '7');
+  let g = houseSetup({ sevenZero: true }, three(), [[s7, c('red', '1')], [c('blue', '2'), c('blue', '3'), c('blue', '4')], [c('red', '3')]], c('red', '5'));
+  g.play('a', s7.id);
+  assert.strictEqual(g.pending.type, 'swap');
+  g.swapHands('a', 'b');
+  assert.strictEqual(g.players[0].hand.length, 3);
+  assert.strictEqual(g.players[1].hand.length, 1);
+
+  const z = c('red', '0');
+  g = houseSetup({ sevenZero: true }, three(), [[z, c('red', '1')], [c('blue', '2'), c('blue', '3')], [c('red', '3'), c('red', '4'), c('red', '6')]], c('red', '5'));
+  g.play('a', z.id);
+  assert.deepStrictEqual(g.players.map((p) => p.hand.length), [3, 1, 2]);
+  assert.strictEqual(g.viewFor('a').rules.sevenZero, true);
+});
+
+test('regola della casa: pesca finché non trovi una carta giocabile', () => {
+  const g = houseSetup({ drawUntil: true }, two(), [[c('blue', '1')], [c('blue', '2')]], c('red', '5'));
+  g.deck = [c('red', '9'), c('green', '1'), c('green', '2')]; // si pesca dalla fine
+  g.drawCard('a');
+  assert.strictEqual(g.players[0].hand.length, 4);
+  assert.strictEqual(g.current().id, 'a');
+  assert.ok(g.hasDrawn);
+  g.pass('a'); // la si può anche tenere
+  assert.strictEqual(g.current().id, 'b');
+});

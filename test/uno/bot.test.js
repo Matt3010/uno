@@ -52,3 +52,31 @@ test('i computer non vanno troppo veloci: si vede cosa fanno', () => {
   for (const L of Object.values(bots.LEVELS)) assert.ok(L.think[0] >= 2500, `${L.name} pensa almeno 2,5 s`);
   assert.ok(bots.AFTER_DRAW[0] >= 1500, 'dopo aver pescato aspetta almeno 1,5 s');
 });
+
+// Con tutte le regole della casa accese le partite finiscono lo stesso
+for (const mode of ['classic', 'flip', 'gambling']) {
+  test(`computer con le regole della casa finiscono le partite in ${mode}`, () => {
+    for (let round = 0; round < 25; round++) {
+      const players = [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }, { id: 'c', name: 'C' }];
+      const rules = { stack: true, sevenZero: true, drawUntil: true };
+      const g = new Game(players.slice(0, 2 + (round % 2)), { mode, rules, chips: { a: 100, b: 100, c: 100 } });
+      let steps = 0;
+      while (!g.winner) {
+        assert.ok(++steps < 5000, 'la partita non finisce');
+        const id = g.current().id;
+        applyAction(g, id, chooseAction(g, id, 'normal'), 'normal');
+      }
+    }
+  });
+}
+
+test('con l\'accumulo il computer risponde a un +2 col suo +4', () => {
+  const g = new Game([{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }], { rules: { stack: true } });
+  const w4 = { id: 9001, color: 'wild', value: 'wild4' };
+  g.players[1].hand = [w4, { id: 9002, color: 'blue', value: '3' }];
+  g.turn = 1;
+  g.pending = { type: 'stack', amount: 2, min: 2 };
+  const action = chooseAction(g, 'b', 'normal');
+  assert.strictEqual(action.type, 'play');
+  assert.strictEqual(action.cardId, w4.id);
+});
