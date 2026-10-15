@@ -103,7 +103,9 @@ Con il server avviato in locale: `npx localtunnel --port 3000` oppure
 npm test
 ```
 
-- `game.js` – logica delle regole (indipendente dal server)
-- `server.js` – server Express + Socket.IO, gestione stanze
-- `bot.js` – giocatori computer (scelta della mossa per livello)
-- `public/` – client web (HTML/CSS/JS senza build)
+- `server.js` – server Express + Socket.IO (la pagina iniziale porta a `/uno/`)
+- `uno/game.js` – logica delle regole (indipendente dal server)
+- `uno/server.js` – stanze, turni, timer e giocatori computer
+- `uno/bot.js` – giocatori computer (scelta della mossa per livello)
+- `public/uno/` – client web (HTML/CSS/JS senza build)
+- `test/` – test automatici (`npm test`)
