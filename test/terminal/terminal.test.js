@@ -75,6 +75,9 @@ test('via SSH si crea una stanza, si gioca con un computer e chi usa il browser 
   t.after(() => web.close());
   web.emit('join', { code, name: 'Giulia' });
   await mario.waitFor(/Giulia/);
+  // Giulia esce prima di iniziare, così la mano non aspetta i suoi turni
+  web.emit('leave');
+  await mario.waitFor(/^(?![\s\S]*Giulia)/);
 
   mario.press('b'); // un computer normale
   await mario.waitFor(/computer Normale/);
@@ -82,7 +85,7 @@ test('via SSH si crea una stanza, si gioca con un computer e chi usa il browser 
   await mario.waitFor(/La tua mano/);
 
   // si gioca: quando tocca a mario pesca con P
-  await mario.waitFor(/È IL TUO TURNO/, 30000).catch(() => null);
+  await mario.waitFor(/È IL TUO TURNO/, 10000).catch(() => null);
   const before = await mario.waitFor(/La tua mano \((\d+)\)/);
   if (/È IL TUO TURNO/.test(before)) {
     mario.press('p');
