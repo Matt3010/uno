@@ -21,4 +21,11 @@ setupUno(io);
 
 server.listen(PORT, () => {
   console.log(`UNO online su http://localhost:${server.address().port}`);
+  // con SSH_PORT si può giocare anche dal terminale:  ssh -p 2222 nome@indirizzo
+  if (process.env.SSH_PORT) {
+    require('./terminal/ssh').startSshServer({
+      port: Number(process.env.SSH_PORT),
+      gameServer: `http://localhost:${server.address().port}`,
+    });
+  }
 });

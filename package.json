@@ -5,6 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "terminale": "node terminal/cli.js",
+    "ssh": "node terminal/ssh.js",
     "test": "node --test"
   },
   "repository": {
@@ -18,10 +20,9 @@
   "homepage": "https://github.com/Matt3010/uno#readme",
   "dependencies": {
     "express": "^4.22.3",
-    "socket.io": "^4.8.4"
-  },
-  "devDependencies": {
-    "socket.io-client": "^4.8.4"
+    "socket.io": "^4.8.4",
+    "socket.io-client": "^4.8.4",
+    "ssh2": "^1.17.0"
   },
   "engines": {
     "node": ">=18"

@@ -47,6 +47,51 @@ docker run -p 3000:3000 uno-online
 Con il server avviato in locale: `npx localtunnel --port 3000` oppure
 `cloudflared tunnel --url http://localhost:3000`, e condividi l'URL che ti viene dato.
 
+## Giocare dal terminale
+
+C'è anche una versione **da terminale**, a colori, che si collega allo **stesso server** del sito: chi gioca
+dal terminale sta nella stessa stanza di chi gioca dal browser.
+
+### Modo 1 – dal tuo computer (serve Node.js)
+
+```bash
+git clone https://github.com/Matt3010/uno.git && cd uno
+npm install
+npm run terminale -- --server https://il-tuo-sito.onrender.com
+# opzionali: --nome Mario --stanza ABCD
+```
+
+Funziona con qualsiasi hosting (anche Render), perché usa la stessa connessione del sito.
+Senza `--server` si collega a `http://localhost:3000`.
+
+### Modo 2 – via SSH, senza installare niente
+
+Chi vuole giocare scrive solo:
+
+```bash
+ssh -p 2222 mario@indirizzo-del-server
+```
+
+e si ritrova nel gioco col nome `mario`. Non serve password e non dà accesso al server: si può solo giocare.
+Per attivarlo avvia il server con la variabile `SSH_PORT`:
+
+```bash
+SSH_PORT=2222 npm start
+# oppure con Docker:
+docker run -p 3000:3000 -p 2222:2222 -e SSH_PORT=2222 uno-online
+```
+
+Serve un posto dove la porta 2222 sia raggiungibile da fuori: un VPS, un PC di casa con la porta
+inoltrata dal router, un tunnel TCP (es. `ngrok tcp 2222`) o un hosting che permette porte TCP (es. Fly.io).
+Il piano gratuito di Render **non** lo permette (solo siti web): lì usa il modo 1.
+
+### Tasti
+
+- **← →** scegli la carta · **Invio** giocala · **P** pesca · **A** passa
+- **U** grida UNO! · **B** becca chi non l'ha detto · **Q** (due volte) esci
+- Nella sala d'attesa l'host usa **1-3** per la modalità, **4-6** per le regole della casa, **T** per il tempo,
+  **F/B/D** per aggiungere computer facili/normali/difficili e **S** per iniziare
+
 ## Come si gioca
 
 1. Uno crea la stanza e condivide il link (o il codice).
@@ -108,4 +153,5 @@ npm test
 - `uno/server.js` – stanze, turni, timer e giocatori computer
 - `uno/bot.js` – giocatori computer (scelta della mossa per livello)
 - `public/uno/` – client web (HTML/CSS/JS senza build)
+- `terminal/` – versione da terminale (`tui.js`), comando locale (`cli.js`) e server SSH (`ssh.js`)
 - `test/` – test automatici (`npm test`)
