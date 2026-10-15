@@ -55,31 +55,6 @@ test('due giocatori creano, entrano e giocano', async (t) => {
   assert.notDeepStrictEqual(after.game.hand, st.game.hand);
 });
 
-test('Casinò: scegliendo la modalità tutti partono con 100 fiches', async (t) => {
-  const srv = spawn(process.execPath, [path.join(__dirname, '..', '..', 'server.js')], { env: { ...process.env, PORT: 0 } });
-  t.after(() => srv.kill());
-  const line = await new Promise((res) => srv.stdout.once('data', (d) => res(String(d))));
-  const url = `http://localhost:${line.match(/:(\d+)/)[1]}`;
-  const a = io(url, { transports: ['websocket'] });
-  const b = io(url, { transports: ['websocket'] });
-  t.after(() => { a.close(); b.close(); });
-
-  a.emit('create', { name: 'Anna' });
-  const { code } = await once(a, 'joined');
-  const joined = waitState(a, (s) => s.members.length === 2);
-  b.emit('join', { code, name: 'Bruno' });
-  await joined;
-  const casino = waitState(a, (s) => s.mode === 'gambling');
-  a.emit('mode', 'gambling');
-  const st = await casino;
-  assert.deepStrictEqual(st.members.map((m) => m.score), [100, 100]);
-  const started = waitState(a, (s) => s.game);
-  a.emit('start');
-  const g = (await started).game;
-  assert.strictEqual(g.pot, 20);
-  assert.deepStrictEqual(g.players.map((p) => p.chips), [90, 90]);
-});
-
 test('Timer: allo scadere il gioco fa la mossa al posto del giocatore', async (t) => {
   // 1 "secondo" = 20 ms: un turno da 15 s dura 300 ms
   const srv = spawn(process.execPath, [path.join(__dirname, '..', '..', 'server.js')], {

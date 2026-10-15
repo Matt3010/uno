@@ -5,13 +5,12 @@ const { Game } = require('../../uno/game');
 const { chooseAction, applyAction } = require('../../uno/bot');
 
 // Partite intere giocate solo da computer: devono sempre arrivare a un vincitore senza errori
-for (const mode of ['classic', 'flip', 'nomercy', 'gambling']) {
+for (const mode of ['classic', 'flip', 'nomercy']) {
   for (const level of ['easy', 'normal', 'hard']) {
     test(`computer ${level} finiscono le partite in ${mode}`, () => {
       for (let round = 0; round < 25; round++) {
         const players = [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }, { id: 'c', name: 'C' }, { id: 'd', name: 'D' }];
-        const chips = { a: 100, b: 100, c: 100, d: 100 };
-        const g = new Game(players.slice(0, 2 + (round % 3)), { mode, chips });
+        const g = new Game(players.slice(0, 2 + (round % 3)), { mode });
         let steps = 0;
         while (!g.winner) {
           assert.ok(++steps < 5000, 'la partita non finisce');
@@ -54,12 +53,12 @@ test('i computer non vanno troppo veloci: si vede cosa fanno', () => {
 });
 
 // Con tutte le regole della casa accese le partite finiscono lo stesso
-for (const mode of ['classic', 'flip', 'gambling']) {
+for (const mode of ['classic', 'flip']) {
   test(`computer con le regole della casa finiscono le partite in ${mode}`, () => {
     for (let round = 0; round < 25; round++) {
       const players = [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }, { id: 'c', name: 'C' }];
       const rules = { stack: true, sevenZero: true, drawUntil: true };
-      const g = new Game(players.slice(0, 2 + (round % 2)), { mode, rules, chips: { a: 100, b: 100, c: 100 } });
+      const g = new Game(players.slice(0, 2 + (round % 2)), { mode, rules });
       let steps = 0;
       while (!g.winner) {
         assert.ok(++steps < 5000, 'la partita non finisce');

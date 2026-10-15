@@ -59,11 +59,6 @@
         <b>Show 'Em No Mercy</b>
         <span>+6, +10 e accumulo, il 7 scambia e lo 0 passa le mani, si pesca finché puoi giocare. Con 25 carte sei fuori!</span>
       </button>
-      <button class="mode gambling" data-mode="gambling">
-        <div class="mode-art emoji-art"><i>🎰</i><i>🎲</i><i>💰</i></div>
-        <b>UNO Casinò</b>
-        <span>Fiches finte, piatto a ogni mano, slot machine, dadi e rilanci. Vince chi arriva a 500 fiches o resta l'ultimo con le fiches!</span>
-      </button>
     </div>
     <p id="modeHint" class="muted"></p>
     <button id="rulesBtn" class="btn small ghost">❓ Come si gioca questa modalità</button>
@@ -108,30 +103,6 @@
         <div id="colorDot" class="color-dot"></div>
       </div>
       <div class="direction" id="direction">⟳</div>
-      <div id="potBox" class="pot hidden" title="Il piatto: lo vince chi finisce le carte">
-        <div id="potPile" class="chip-pile big"></div>
-        <b id="potAmount"></b>
-        <span>piatto</span>
-      </div>
-      <!-- Casinò: slot machine e dadi sul tavolo -->
-      <div id="casinoTable" class="casino-table hidden">
-        <div class="slot-cabinet" id="slotMachine">
-          <div class="slot-marquee"><span>JACKPOT</span></div>
-          <div class="slot-bulbs"></div>
-          <div class="slot-window">
-            <div class="reel"><div class="strip"><span>7️⃣</span></div></div>
-            <div class="reel"><div class="strip"><span>7️⃣</span></div></div>
-            <div class="reel"><div class="strip"><span>7️⃣</span></div></div>
-          </div>
-          <div class="slot-tray"></div>
-          <div class="lever" id="slotLever"><div class="lever-arm"></div><div class="lever-knob"></div></div>
-        </div>
-        <div class="dice-tray">
-          <div class="die3d" id="die1"><div class="die-tilt"><div class="cube"></div></div></div>
-          <div class="die3d" id="die2"><div class="die-tilt"><div class="cube"></div></div></div>
-        </div>
-        <div id="casinoMsg" class="casino-msg"></div>
-      </div>
     </div>
 
     <div id="pendingInfo" class="pending-info hidden"></div>
@@ -142,7 +113,6 @@
       <button id="passBtn" class="btn small hidden">Passa</button>
       <div id="myTimer" class="timer-ring big hidden" title="Tempo rimasto per il tuo turno"><span></span></div>
       <button id="unoBtn" class="btn uno">UNO!</button>
-      <span id="myChips" class="chips-badge hidden"></span>
     </div>
 
     <div id="hand" class="hand"></div>
@@ -204,7 +174,6 @@
   <div id="toast" class="toast hidden"></div>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script src="chips.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

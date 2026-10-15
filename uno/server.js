@@ -34,7 +34,7 @@ module.exports = function setupUno(io) {
 
   // "Firma" del turno: cambia quando tocca a un altro o c'è una nuova decisione da prendere
   function turnKey(g) {
-    return [g.current().id, g.pending ? g.pending.type : '', g.hasDrawn, g.discard.length, g.side, g.eventSeq].join('|');
+    return [g.current().id, g.pending ? g.pending.type : '', g.hasDrawn, g.discard.length, g.side].join('|');
   }
 
   function clearTurnTimer(room) {
@@ -194,27 +194,8 @@ module.exports = function setupUno(io) {
     broadcast(room);
   }
 
-  // Punteggio (o fiches nel Casinò) con cui si inizia una partita
-  function startScore(room) {
-    return MODES[room.mode].startChips || 0;
-  }
-
   function applyWinner(room) {
     const g = room.game;
-    if (g && g.winner && !g.scored && g.casino) {
-      g.scored = true;
-      // Casinò: il punteggio sono le fiches rimaste a ciascuno
-      for (const m of room.members.values()) {
-        if (g.chips[m.id] !== undefined) m.score = g.chips[m.id];
-      }
-      const members = [...room.members.values()];
-      const richest = members.reduce((a, b) => (b.score > a.score ? b : a));
-      const solvent = members.filter((m) => m.score > 0);
-      if (richest.score >= MODES[room.mode].target || solvent.length <= 1) {
-        room.matchWinner = { id: richest.id, name: richest.name, score: richest.score };
-      }
-      return;
-    }
     if (g && g.winner && !g.scored) {
       g.scored = true;
       const m = room.members.get(g.winner.id);
@@ -255,7 +236,7 @@ module.exports = function setupUno(io) {
       const id = crypto.randomUUID();
       const r = { code, hostId: id, members: new Map(), game: null, dealer: -1, matchWinner: null, mode: 'classic', turnTime: DEFAULT_TURN_TIME };
       r.houseRules = Object.fromEntries(Object.keys(HOUSE_RULES).map((k) => [k, false]));
-      r.members.set(id, { id, name: cleanName(name), socketId: null, connected: false, score: startScore(r), timer: null });
+      r.members.set(id, { id, name: cleanName(name), socketId: null, connected: false, score: 0, timer: null });
       rooms.set(code, r);
       attach(r, r.members.get(id));
     });
@@ -272,7 +253,7 @@ module.exports = function setupUno(io) {
       if (r.game && !r.game.winner) return fail('Partita già in corso, aspetta la fine della mano');
       if (r.members.size >= MAX_PLAYERS) return fail('Stanza piena');
       const id = crypto.randomUUID();
-      r.members.set(id, { id, name: cleanName(name), socketId: null, connected: false, score: startScore(r), timer: null });
+      r.members.set(id, { id, name: cleanName(name), socketId: null, connected: false, score: 0, timer: null });
       attach(r, r.members.get(id));
     });
 
@@ -284,12 +265,11 @@ module.exports = function setupUno(io) {
       if (room.matchWinner) {
         // nuova partita: punteggi azzerati
         room.matchWinner = null;
-        for (const m of players) m.score = startScore(room);
+        for (const m of players) m.score = 0;
       }
       // chi distribuisce ruota a ogni mano
       room.dealer = (room.dealer + 1) % players.length;
-      const chips = Object.fromEntries(players.map((m) => [m.id, m.score]));
-      room.game = new Game(players, { dealer: room.dealer, mode: room.mode, chips, rules: room.houseRules });
+      room.game = new Game(players, { dealer: room.dealer, mode: room.mode, rules: room.houseRules });
       broadcast(room);
     });
 
@@ -300,7 +280,7 @@ module.exports = function setupUno(io) {
       room.mode = mode;
       room.matchWinner = null;
       room.game = null;
-      for (const m of room.members.values()) m.score = startScore(room);
+      for (const m of room.members.values()) m.score = 0;
       broadcast(room);
     });
 
@@ -319,7 +299,7 @@ module.exports = function setupUno(io) {
       if (room.members.size >= MAX_PLAYERS) return fail('Stanza piena');
       const id = `bot-${crypto.randomUUID()}`;
       const name = bots.pickName([...room.members.values()].map((m) => m.name));
-      room.members.set(id, { id, name, bot: true, level, socketId: null, connected: true, score: startScore(room), timer: null });
+      room.members.set(id, { id, name, bot: true, level, socketId: null, connected: true, score: 0, timer: null });
       broadcast(room);
     });
 

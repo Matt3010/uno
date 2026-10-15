@@ -4,7 +4,7 @@ Una copia di UNO giocabile online con gli amici, direttamente dal browser (anche
 
 - Stanze private con codice di 4 lettere e link da condividere
 - Da 2 a 10 giocatori, tutto in tempo reale (Socket.IO)
-- Quattro modalità: **UNO Classico**, **UNO Flip**, **UNO Show 'Em No Mercy** e **UNO Casinò**
+- Tre modalità: **UNO Classico**, **UNO Flip** e **UNO Show 'Em No Mercy**
 - Pulsante **UNO!** e possibilità di "beccare" chi se lo dimentica (+2 carte)
 - Punteggio cumulativo tra le mani, riconnessione automatica se cade la linea
 - **Giocatori computer** da aggiungere insieme agli amici (Facile, Normale, Difficile): pensano qualche
@@ -96,28 +96,6 @@ Con il server avviato in locale: `npx localtunnel --port 3000` oppure
 - **Regola della pietà**: con **25 carte** o più sei eliminato. Vince chi finisce le carte o resta l'ultimo.
 - Niente sfide sui Jolly: si possono giocare sempre.
 - Punti: numeri = valore, azioni colorate = 20, jolly = 50, ogni giocatore eliminato = 250.
-
-### UNO Casinò (fiches finte, si vince a 500 fiches)
-
-Regole del Classico, più fiches, piatto e carte da casinò. Sul tavolo ci sono una **slot machine** e
-due **dadi** che si animano per tutti quando vengono usati. Le fiches sono solo per gioco: niente soldi veri.
-
-- Si parte con **100 fiches**. A ogni mano tutti mettono **10 fiches nel piatto**.
-- Chi vince la mano prende **il piatto** più **2 fiches per ogni carta** rimasta agli avversari.
-- **🎰 Slot machine** (Jolly, 4 carte): scegli il colore e tiri la leva.
-  - tre 7: **JACKPOT**, +100 fiches e tutti gli altri pescano 3 carte;
-  - tris: +30 fiches e gli altri pescano 2 carte;
-  - coppia: +10 fiches e il successivo pesca 1 carta;
-  - niente: metti 10 fiches nel piatto e peschi 1 carta.
-- **🎲 Dadi** (2 per colore): lanci due dadi.
-  - doppio: vinci 10 × il valore e giochi ancora;
-  - 7: tutti gli altri pescano 1 carta;
-  - 10 o più: il successivo pesca 2 carte e salta il turno;
-  - 4 o meno: peschi tu 2 carte.
-- **💰 Rilancio** (1 per colore): tutti mettono altre 10 fiches nel piatto.
-- Chi viene beccato senza UNO, oltre a pescare 2 carte, paga **10 fiches** a chi l'ha beccato.
-- Chi resta senza fiches continua a giocare ma non può più puntare. La partita finisce quando qualcuno
-  arriva a **500 fiches** o quando resta un solo giocatore con le fiches.
 
 ## Sviluppo
 
