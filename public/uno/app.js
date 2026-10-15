@@ -21,6 +21,7 @@ let state = null;
 let pendingWildCard = null; // carta Jolly selezionata in attesa del colore
 let colorPickerMode = null; // 'play' | 'pending'
 let lastGame = null; // stato precedente, per animare i cambiamenti
+let fromLobby = false; // l'ultima schermata era la sala d'attesa: la mano che arriva è appena iniziata
 const seenMembers = new Set(); // chi è già comparso nella sala d'attesa (animato solo all'ingresso)
 let timerDeadline = null; // fine del turno corrente (orologio locale)
 let timerTotal = 0;
@@ -558,6 +559,7 @@ function render() {
 
   if (!g) {
     lastGame = null;
+    fromLobby = true;
     closeColorPicker();
     for (const id of ['challengeBox', 'swapBox', 'roundEnd']) $(id).classList.add('hidden');
     return renderLobby(s, isHost);
@@ -644,7 +646,7 @@ function render() {
 
   $('takeBtn').classList.toggle('hidden', !stackPending);
   if (stackPending) $('takeBtn').textContent = `Pesca ${pend.amount} carte`;
-  $('passBtn').classList.toggle('hidden', !(myTurn && g.hasDrawn && g.mode !== 'nomercy'));
+  $('passBtn').classList.toggle('hidden', !(myTurn && g.hasDrawn && !pend && g.mode !== 'nomercy'));
 
   // Scelta colore richiesta dal gioco (prima carta Jolly, Flip, roulette)
   if (myPending === 'color' || myPending === 'roulette') {
@@ -712,7 +714,10 @@ function render() {
   if (prevG) animateChanges(prevG, g, s, before);
   // a ogni nuova mano i contatori ripartono da capo: lì conta qualunque salto o lancio
   const newHand = prevG && prevG.winner && !g.winner;
-  if (prevG && g.skip && (newHand || !prevG.skip || prevG.skip.seq !== g.skip.seq)) announceSkip(g, s);
+  // la prima mano partita dalla sala d'attesa annuncia anche il salto dato dalla prima carta
+  const startedFromLobby = !prevG && fromLobby;
+  fromLobby = false;
+  if (g.skip && (startedFromLobby || (prevG && (newHand || !prevG.skip || prevG.skip.seq !== g.skip.seq)))) announceSkip(g, s);
   lastGame = g;
 }
 

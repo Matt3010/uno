@@ -458,6 +458,9 @@ class Game {
         break;
       case '7':
         if (this.sevenZero) {
+          // il turno resta suo per scegliere con chi scambiare: la pescata di prima non conta più
+          this.hasDrawn = false;
+          this.drawnCardId = null;
           this.pending = { type: 'swap' };
           this.addLog(`${player.name} sceglie con chi scambiare la mano`);
           break;
@@ -666,7 +669,11 @@ class Game {
     const other = this.getPlayer(targetId);
     this.pending = null;
     [me.hand, other.hand] = [other.hand, me.hand];
-    this.resetUnoFlags();
+    // cambia mano solo chi scambia: gli altri tengono il loro UNO
+    for (const p of [me, other]) {
+      p.saidUno = false;
+      if (this.unoVulnerable === p.id) this.unoVulnerable = null;
+    }
     this.addLog(`${me.name} scambia la mano con ${other.name}`);
     this.advance(1);
   }
@@ -769,8 +776,12 @@ class Game {
       if (this.direction === -1) this.turn--;
       this.hasDrawn = false;
       this.drawnCardId = null;
-      // se doveva scegliere il colore, lo sceglie (e poi gioca) il giocatore dopo
-      this.pending = this.pending && this.pending.type === 'color' ? { type: 'color', after: 0 } : null;
+      // se doveva scegliere il colore, lo sceglie (e poi gioca) il giocatore dopo;
+      // un accumulo di carte pesca passa al giocatore dopo invece di sparire
+      const p = this.pending;
+      if (p && p.type === 'color') this.pending = { type: 'color', after: 0 };
+      else if (p && p.type === 'stack') this.pending = p;
+      else this.pending = null;
     }
     this.turn = ((this.turn % n) + n) % n;
     if (!this.winner && n === 1) this.finish(this.players[0]);

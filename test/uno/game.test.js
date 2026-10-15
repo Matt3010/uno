@@ -682,3 +682,34 @@ test('regola della casa: pesca finché non trovi una carta giocabile', () => {
   g.pass('a'); // la si può anche tenere
   assert.strictEqual(g.current().id, 'b');
 });
+
+// --- Correzioni dopo la revisione ---
+test('7 pescato e giocato: niente "Passa" mentre si sceglie con chi scambiare', () => {
+  const g = houseSetup({ sevenZero: true }, three(), [[c('blue', '1'), c('blue', '2')], [c('green', '1')], [c('green', '2')]], c('red', '5'));
+  const seven = c('red', '7');
+  g.deck.push(seven);
+  g.drawCard('a');
+  g.play('a', seven.id);
+  assert.strictEqual(g.pending.type, 'swap');
+  assert.strictEqual(g.viewFor('a').hasDrawn, false);
+  g.swapHands('a', 'b');
+  assert.strictEqual(g.current().id, 'b');
+});
+
+test('accumulo: se chi deve rispondere esce, la penalità passa al successivo', () => {
+  const d2 = c('red', 'draw2');
+  const g = houseSetup({ stack: true }, three(), [[d2, c('red', '9')], [c('green', '1')], [c('green', '2')]], c('red', '3'));
+  g.play('a', d2.id);
+  assert.deepStrictEqual([g.current().id, g.pending.type, g.pending.amount], ['b', 'stack', 2]);
+  g.removePlayer('b');
+  assert.deepStrictEqual([g.current().id, g.pending && g.pending.type, g.pending && g.pending.amount], ['c', 'stack', 2]);
+});
+
+test('scambio col 7: chi non scambia tiene il suo UNO', () => {
+  const seven = c('red', '7');
+  const g = houseSetup({ sevenZero: true }, three(), [[seven, c('red', '9'), c('red', '8')], [c('green', '1'), c('green', '2')], [c('green', '3')]], c('red', '3'));
+  g.players[2].saidUno = true;
+  g.play('a', seven.id);
+  g.swapHands('a', 'b');
+  assert.strictEqual(g.players[2].saidUno, true);
+});

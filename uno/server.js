@@ -286,7 +286,7 @@ module.exports = function setupUno(io) {
 
     // L'host accende o spegne una regola della casa (vale dalla mano dopo)
     socket.on('rules', ({ key, on } = {}) => {
-      if (!room || room.hostId !== playerId || !(key in HOUSE_RULES)) return;
+      if (!room || room.hostId !== playerId || !Object.hasOwn(HOUSE_RULES, key)) return;
       if (room.game && !room.game.winner) return fail("Le regole si cambiano tra una mano e l'altra");
       room.houseRules = { ...room.houseRules, [key]: !!on };
       broadcast(room);
