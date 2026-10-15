@@ -57,12 +57,12 @@ dal terminale sta nella stessa stanza di chi gioca dal browser.
 ```bash
 git clone https://github.com/Matt3010/uno.git && cd uno
 npm install
-npm run terminale -- --server https://il-tuo-sito.onrender.com
+npm run terminale
 # opzionali: --nome Mario --stanza ABCD
 ```
 
-Funziona con qualsiasi hosting (anche Render), perché usa la stessa connessione del sito.
-Senza `--server` si collega a `http://localhost:3000`.
+Si collega al sito **https://uno.scanferlamatteo.work** (stesse stanze di chi gioca dal browser).
+Per un altro server: `npm run terminale -- --server https://altro-sito` (in locale: `--server http://localhost:3000`).
 
 ### Modo 2 – via SSH, senza installare niente
 
